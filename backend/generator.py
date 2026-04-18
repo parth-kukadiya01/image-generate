@@ -1,14 +1,26 @@
 import os
 import asyncio
 import mimetypes
+import random
 from pathlib import Path
+from PIL import Image
 from google import genai
 from google.genai import types
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyDguSjewpyBF19U0JSuq4ZOPfDk3RZKeHU")
-MODEL          = "gemini-2.5-flash-image"
+GEMINI_API_KEY = "AIzaSyBRYRW4UxifNDI65wArxv0wWbDcACXWuyI"
+MODEL          = "gemini-2.5-flash-image" # Correcting to the intended model if approved
 TOTAL_PRODUCT  = 4
-TOTAL_MODEL    = 2
+TOTAL_MODEL    = 0
+LOGO_PATH      = "/Users/parthkukadiya/work/pint_automation/riolls_logo.png"
+
+# BRAND THEME CONSISTENCY
+GLOBAL_THEME_RULES = """
+BRAND VISUAL IDENTITY (THEME):
+- BACKGROUND: Use a high-end, textured "Creamy Marble" or luxury natural light stone surface for all product shots.
+- LIGHTING: Soft, directional natural side-window lighting that creates elegant shadows and emphasizes metal texture.
+- AESTHETIC: Quiet luxury, minimalist, and sophisticated.
+- DO NOT use different backgrounds or inconsistent lighting across shots.
+"""
 
 
 CATEGORIES = {
@@ -20,54 +32,36 @@ CATEGORIES = {
                 "key":   "01_product_front",
                 "label": "Product — Straight Front",
                 "shot":  (
-                    "The ring standing upright on a soft light grey neutral surface, shot straight-on "
+                    "The ring standing upright on a textured, creamy marble surface, shot straight-on "
                     "from the front at eye level. The face of the ring fills the frame symmetrically. "
-                    "Soft even studio lighting. Soft light grey neutral background. Classic hero product shot."
-                ),
-            },
-            {
-                "key":   "02_product_glamour",
-                "label": "Product — Glamour 45°",
-                "shot":  (
-                    "The ring standing upright, shot from a 45-degree front-left angle, "
-                    "camera slightly above looking down. Shows the face, depth of setting, "
-                    "and curve of band simultaneously. Dramatic studio lighting, Soft light grey neutral background."
+                    "Soft window light from the side, creating organic shadows. Elegant hero product shot."
                 ),
             },
             {
                 "key":   "03_product_top_down",
                 "label": "Product — Top-Down",
                 "shot":  (
-                    "The ring lying flat, shot from directly above (top-down bird's-eye view). "
+                    "The ring lying flat on a luxury natural stone surface, shot from directly above (top-down bird's-eye view). "
                     "Full face of the center stone, halo, and band fully visible. "
-                    "Perfect symmetry visible. Soft light grey neutral background, even overhead lighting."
-                ),
-            },
-            {
-                "key":   "04_product_side",
-                "label": "Product — Side Profile",
-                "shot":  (
-                    "The ring standing upright, shot from a strict 90-degree side profile. "
-                    "Shows the full height of the setting above the band and the band depth. "
-                    "Soft light grey neutral background, soft studio lighting."
-                ),
-            },
-            {
-                "key":   "07_product_macro",
-                "label": "Product — Setting Macro Close-Up",
-                "shot":  (
-                    "Extreme macro close-up of the main stone setting on a neutral soft grey surface. "
-                    "Focus entirely on the prongs, gallery, and exact center stone cuts. "
-                    "Soft light grey background, sharp focus."
+                    "Perfect symmetry. Soft overhead natural lighting, shallow depth of field."
                 ),
             },
             {
                 "key":   "08_product_laying_glamour",
                 "label": "Product — Laying Angle",
                 "shot":  (
-                    "The ring laying on its side at a dynamic 45-degree angle. "
-                    "Shows the entire band resting against the surface and the face tilted elegantly toward the lens. "
-                    "Soft light grey background, even studio lighting."
+                    "The ring laying on its side at a dynamic 45-degree angle on a creamy marble surface. "
+                    "Shows the entire band and the face tilted elegantly toward the lens. "
+                    "Soft natural highlights, organic shadows, professional jewelry photography."
+                ),
+            },
+            {
+                "key":   "09_product_three_quarter_profile",
+                "label": "Product — 3/4 Perspective",
+                "shot":  (
+                    "The ring standing on a textured natural stone surface, shot from a 45-degree three-quarter profile. "
+                    "Shows the side of the band and the face of the stone simultaneously. "
+                    "Dramatic natural side lighting, realistic depth of field."
                 ),
             },
         ],
@@ -76,35 +70,41 @@ CATEGORIES = {
                 "key":   "05_model_hand_front",
                 "label": "Model — Hand Front",
                 "shot":  (
-                    "A real female hand with natural skin tone and neat nude-polished nails. "
-                    "The ring sits on the ring finger at its REAL, natural size — a ring is small, "
-                    "approximately 17-19mm diameter, fitting snugly on the finger. "
-                    "Hand raised gracefully, fingers together, shot straight-on. "
-                    "Clean neutral background, soft natural studio light. "
-                    "The ring is clearly visible but proportionate — not oversized, not cartoonish. "
-                    "Looks like a genuine luxury jewelry editorial photograph."
+                    "A real female hand with natural skin texture, visible pores, and neat nude-polished nails. "
+                    "The ring sits on the ring finger at its REAL, natural size. "
+                    "Hand raised gracefully, shot straight-on. "
+                    "Soft natural light from a window, shallow depth of field. "
+                    "Indistinguishable from a genuine luxury jewelry editorial."
                 ),
             },
             {
-                "key":   "06_model_hand_glamour",
+                "key": "06_model_hand_glamour",
                 "label": "Model — Hand Glamour",
-                "shot":  (
-                    "A real female hand with natural skin and nude nails, "
-                    "held at a graceful 45-degree angle with fingers softly curved. "
-                    "The ring is on the ring finger at its correct natural size — "
-                    "small and elegant as a real ring appears on a real finger. "
-                    "Shot from slightly above and to the side. Soft bokeh background. "
-                    "The ring catches the light naturally. Photorealistic luxury jewelry advertisement — "
-                    "real proportions, real scale, human and elegant."
+                "shot": (
+                    "A high-end luxury jewelry editorial photograph of a real female hand with "
+                    "flawless natural skin texture and organic warmth. "
+                    "The hand is held at a graceful 45-degree angle. The ring is worn at its "
+                    "perfect, realistic scale — never oversized. "
+                    "The lighting is soft-box quality combined with natural ambient light. "
+                    "The background is a creamy neutral bokeh. Real proportions and skin details."
                 ),
             },
             {
-                "key":   "09_model_hand_holding",
-                "label": "Model — Cupped Hand Action",
-                "shot":  (
-                    "A real female hand gently cupping or adjusting something with the other hand, focusing on the ring finger. "
-                    "The ring sparkles naturally in motion. "
-                    "Real natural skin tones. Soft natural studio light, out-of-focus bokeh background. Photorealistic lifestyle setting."
+                "key": "12_model_index_finger",
+                "label": "Model — Index Finger Close-Up",
+                "shot": (
+                    "A close-up of a real woman's index finger wearing the ring. "
+                    "Shows the ring from a slightly side-angled view. "
+                    "Natural window lighting, sharp skin details, soft-focus palm/background."
+                ),
+            },
+            {
+                "key": "13_model_hand_lifestyle",
+                "label": "Model — Hand Lifestyle Pose",
+                "shot": (
+                    "A real woman's hand resting naturally on the lapel of a wool blazer, wearing the ring. "
+                    "Natural daylight, realistic skin and fabric texture. "
+                    "High-end lifestyle photography, authentic luxury vibe."
                 ),
             },
         ],
@@ -118,87 +118,76 @@ CATEGORIES = {
                 "key":   "01_product_hanging",
                 "label": "Product — Hanging Front",
                 "shot":  (
-                    "The necklace hanging vertically as if around a neck, shot straight-on. "
-                    "Chain drapes naturally, pendant centered at the bottom. "
-                    "Soft light grey neutral background, even studio lighting. Classic product shot."
+                    "The necklace hanging vertically, shot straight-on against a creamy marble surface. "
+                    "Chain drapes naturally. Soft directional lighting creating subtle depth. "
+                    "Classic, realistic luxury product photography."
                 ),
             },
             {
                 "key":   "02_product_flat_lay",
                 "label": "Product — Flat Lay",
                 "shot":  (
-                    "The necklace laid flat on a soft light grey neutral surface, shot top-down from directly above. "
-                    "Chain arranged in a clean arc with pendant centered. "
-                    "Even overhead lighting. Shows full length and pendant detail."
+                    "The necklace laid flat on a luxury natural stone surface, shot top-down. "
+                    "Chain arranged in a clean arc. Natural window lighting catching the stone facets. "
+                    "Shows full length and pendant detail with organic shadows."
                 ),
             },
             {
                 "key":   "03_product_pendant_close",
                 "label": "Product — Pendant Close-Up",
                 "shot":  (
-                    "Close-up of the pendant only, shot straight-on from the front. "
-                    "Fills most of the frame. All stone facets and metal details razor-sharp. "
-                    "Soft light grey neutral background, dramatic studio lighting."
+                    "Close-up of the pendant only, on a creamy marble surface. "
+                    "Fills most of the frame. All facets and metal details razor-sharp. "
+                    "Dramatic side lighting, extremadamente shallow depth of field."
                 ),
             },
             {
                 "key":   "04_product_glamour",
                 "label": "Product — Glamour 45°",
                 "shot":  (
-                    "The necklace hanging, shot from a 45-degree glamour angle slightly elevated. "
-                    "Shows pendant depth and chain drape beautifully. "
-                    "Soft light grey neutral background, dramatic studio lighting."
-                ),
-            },
-            {
-                "key":   "07_product_chain_detail",
-                "label": "Product — Clasp & Chain Lay",
-                "shot":  (
-                    "The necklace laid down, creatively spiraled to feature the clasp ending next to the pendant. "
-                    "Highlights the delicate chain link texture and closure setup. "
-                    "Soft light grey neutral background, sharp studio focus."
-                ),
-            },
-            {
-                "key":   "08_product_dynamic_drape",
-                "label": "Product — Asymmetric Drape",
-                "shot":  (
-                    "The necklace elegantly draped over an angular, soft white stone or neutral prop. "
-                    "Pendant rests cleanly on the surface while the chain flows diagonally. "
-                    "Soft directional light, distinct shadow, highly curated presentation."
+                    "The necklace hanging, shot from a 45-degree glamour angle slightly elevated against a natural stone surface. "
+                    "Soft bokeh background, natural light source, pendant depth clearly visible."
                 ),
             },
         ],
         "model": [
             {
-                "key":   "05_model_neck_front",
+                "key": "05_model_neck_front",
                 "label": "Model — Neck Front",
-                "shot":  (
-                    "A real woman wearing the necklace, shot from the front framing collarbone to chin. "
-                    "The necklace rests at its NATURAL size on her bare collarbone — "
-                    "a necklace pendant is typically 15-30mm, fitting naturally on the neck. "
-                    "It should NOT appear oversized or exaggerated. "
-                    "Soft natural studio lighting, clean neutral background. "
-                    "Necklace in sharp focus. Looks like a real jewelry brand photograph."
+                "shot": (
+                    "A high-end editorial jewelry portrait of a real woman wearing the necklace, "
+                    "framing the collarbone and neck. The necklace rests naturally on her bare skin "
+                    "at its true, real-world scale (pendant approx. 15-30mm). "
+                    "Soft natural lighting highlights the skin's natural texture and pores. "
+                    "Minimalist, slightly out-of-focus background. Raw photography style."
                 ),
             },
             {
-                "key":   "06_model_pendant_macro",
+                "key": "06_model_pendant_macro",
                 "label": "Model — Pendant Close-Up",
-                "shot":  (
-                    "Close-up of the pendant resting on a real woman's collarbone. "
-                    "The pendant is at its REAL, natural scale — not blown up or exaggerated. "
-                    "Shallow depth of field — pendant in razor-sharp focus, skin softly blurred. "
-                    "Warm natural light, real skin texture visible. Authentic luxury editorial style."
+                "shot": (
+                    "An extreme macro close-up of the pendant resting on a real woman's collarbone. "
+                    "Lighting is warm and natural. Extremely shallow depth of field: "
+                    "the pendant is in razor-sharp focus while the skin texture and surroundings "
+                    "softly blur. Authentic luxury editorial look."
                 ),
             },
             {
                 "key":   "09_model_clothing_lifestyle",
                 "label": "Model — Over Clothing Lifestyle",
                 "shot":  (
-                    "A real woman wearing a silky neutral-toned blouse or fine knit sweater, with the necklace resting elegantly over the fabric. "
-                    "The chain and pendant are at realistic scales. "
-                    "Natural window lighting, shallow depth of field. High-end lifestyle vibe."
+                    "A real woman wearing a silky neutral-toned blouse, with the necklace resting elegantly. "
+                    "Realistic scales. Natural window lighting, soft shadows on the fabric. "
+                    "High-end lifestyle photography vibe."
+                ),
+            },
+            {
+                "key":   "12_model_neck_side_profile",
+                "label": "Model — Neck Side Angle",
+                "shot":  (
+                    "A real woman shot from a side profile, wearing the necklace. "
+                    "Shows how the chain wraps the neck and the pendant hangs. "
+                    "Natural window light, shallow depth of field, sharp skin detail."
                 ),
             },
         ],
@@ -212,58 +201,65 @@ CATEGORIES = {
                 "key":   "01_product_front",
                 "label": "Product — Front Upright",
                 "shot":  (
-                    "The bracelet standing upright on a soft light grey neutral surface, shot straight-on. "
-                    "Full width and all stones visible. Soft light grey neutral background, even studio lighting."
+                    "The bracelet standing upright on a textured creamy marble surface, shot straight-on. "
+                    "Soft natural lighting, organic shadows, clean and realistic presentation."
                 ),
             },
             {
                 "key":   "02_product_glamour",
                 "label": "Product — Glamour 45°",
                 "shot":  (
-                    "The bracelet at a 45-degree angle, camera slightly elevated. "
-                    "Shows the front face and side depth simultaneously. "
-                    "Soft light grey neutral background, dramatic studio lighting."
+                    "The bracelet at a 45-degree angle on a luxury natural stone surface. "
+                    "Shows the front face and side depth. Dramatic side lighting, "
+                    "luxury jewelry advertisement style."
                 ),
             },
             {
                 "key":   "03_product_top_down",
                 "label": "Product — Top-Down",
                 "shot":  (
-                    "The bracelet lying flat, shot from directly above (top-down). "
-                    "Full stone arrangement and width visible. Soft light grey neutral background."
+                    "The bracelet lying flat on a creamy marble surface, shot from directly above. "
+                    "Soft natural light, shallow depth of field, real-world texture."
                 ),
             },
             {
                 "key":   "04_product_detail",
                 "label": "Product — Clasp Detail",
                 "shot":  (
-                    "Close-up of the bracelet clasp and end section. "
-                    "Shows the craftsmanship and closure mechanism. "
-                    "Soft light grey neutral background, sharp studio lighting."
+                    "Close-up of the bracelet clasp on a natural stone surface. "
+                    "Shows the craftsmanship and closure mechanism clearly. "
+                    "Sharp focus, natural lighting."
                 ),
             },
         ],
         "model": [
             {
-                "key":   "05_model_wrist_front",
+                "key": "05_model_wrist_front",
                 "label": "Model — Wrist Front",
-                "shot":  (
-                    "A real female wrist and hand, natural skin, neat nails. "
-                    "The bracelet sits naturally on the wrist at its REAL size — "
-                    "a bracelet wraps a 15-17cm wrist comfortably, not oversized. "
-                    "Hand held gracefully, shot front-on. "
-                    "Clean neutral background, soft studio light. Bracelet in sharp focus. "
-                    "Photorealistic — real wrist, real proportions."
+                "shot": (
+                    "A high-end commercial photograph of a real female wrist with "
+                    "natural skin tone and texture (visible pores). The bracelet is worn naturally "
+                    "at its correct, realistic size. Hand is relaxed. "
+                    "Soft natural lighting illuminates the metal and stones. Photorealistic."
                 ),
             },
             {
-                "key":   "06_model_wrist_lifestyle",
+                "key": "06_model_wrist_lifestyle",
                 "label": "Model — Wrist Lifestyle",
-                "shot":  (
-                    "A real woman's wrist with the bracelet at its natural, realistic size. "
-                    "Hand resting naturally on a clean surface. "
-                    "Shot at a relaxed 45-degree angle. Soft natural light, softly blurred background. "
-                    "Looks like a real lifestyle jewelry photograph — natural proportions, not exaggerated."
+                "shot": (
+                    "A lifestyle jewelry photograph featuring a real woman's wrist. "
+                    "The hand rests naturally on a soft-textured surface. "
+                    "Soft directional natural light creates subtle shadows. "
+                    "Shallow depth of field, genuine proportions."
+                ),
+            },
+            {
+                "key": "09_model_wrist_clothing",
+                "label": "Model — Over Cuff Sleeve",
+                "shot": (
+                    "The bracelet worn over the cuff of a high-end silk blouse. "
+                    "Shows how it pairs with luxury fashion. Natural window light, "
+                    "sharp focus on the jewelry, authentic fabric texture."
                 ),
             },
         ],
@@ -277,83 +273,72 @@ CATEGORIES = {
                 "key":   "01_product_pair_front",
                 "label": "Product — Pair Front",
                 "shot":  (
-                    "Both earrings as a matching pair, laid on a soft light grey neutral surface side by side. "
-                    "Shot straight-on from the front. "
-                    "Soft light grey neutral background, even studio lighting. Full detail visible."
+                    "Both earrings as a matching pair, laid on a textured creamy marble surface side by side. "
+                    "Soft natural lighting from the side, creating realistic depth and shadows. "
+                    "Every detail sharp."
                 ),
             },
             {
                 "key":   "02_product_single_glamour",
                 "label": "Product — Single Glamour",
                 "shot":  (
-                    "One single earring, shot from a 45-degree glamour angle, camera slightly elevated. "
-                    "Soft light grey neutral background, dramatic studio lighting. Every stone facet visible."
+                    "One single earring on a luxury natural stone pedestal, shot from a 45-degree angle. "
+                    "Natural directional light catching the stones. Real-world texture."
                 ),
             },
             {
                 "key":   "03_product_top_down",
                 "label": "Product — Pair Top-Down",
                 "shot":  (
-                    "Both earrings laid flat, shot from directly above (top-down). "
-                    "Symmetrically placed. Full surface detail visible. Soft light grey neutral background."
+                    "Both earrings laid flat on a creamy marble surface, shot from directly above. "
+                    "Symmetrically placed. Soft natural light, shallow depth of field."
                 ),
             },
             {
                 "key":   "04_product_side",
                 "label": "Product — Single Side Profile",
                 "shot":  (
-                    "One single earring, shot from a 90-degree side profile. "
-                    "Shows the depth, backing, and drop length. Soft light grey neutral background."
-                ),
-            },
-            {
-                "key":   "07_product_creative_tilt",
-                "label": "Product — Pair Tilt Profile",
-                "shot":  (
-                    "Both earrings standing dynamically, offset from each other. "
-                    "One turned slightly sideways to show depth, the other facing forward. "
-                    "Soft studio gradient grey background, precise edge lighting."
-                ),
-            },
-            {
-                "key":   "08_product_macro_back",
-                "label": "Product — Backing Texture Detail",
-                "shot":  (
-                    "Extreme macro shot of the post/hook and back design of a single earring. "
-                    "Every metallic slope and clasp detail sharply rendered. "
-                    "Clear soft grey background, dramatic lighting."
+                    "One single earring, shot from a 90-degree side profile on a natural stone surface. "
+                    "Shows the depth and backing. Realistic lighting and shadows."
                 ),
             },
         ],
         "model": [
             {
-                "key":   "05_model_ear_side",
+                "key": "05_model_ear_side",
                 "label": "Model — Ear Side Profile",
-                "shot":  (
-                    "A real woman's ear and side of her face, hair swept back to show the earring. "
-                    "The earring is at its REAL natural size — earrings hang from the earlobe and "
-                    "should look proportionate to the face and ear, not oversized. "
-                    "Shot from a clean side-profile angle. Soft natural studio light, clean background. "
-                    "Earring in sharp focus. Photorealistic."
+                "shot": (
+                    "A professional luxury jewelry photograph of a real woman's ear. "
+                    "The earring is rendered at its precise natural size. "
+                    "Lighting is crisp and natural, highlighting skin texture (pores, natural tones). "
+                    "The earring is in razor-sharp focus against a soft-focus profile."
                 ),
             },
             {
-                "key":   "06_model_ear_34",
+                "key": "06_model_ear_34",
                 "label": "Model — Face 3/4 Angle",
-                "shot":  (
-                    "A real woman at a three-quarter face angle, earring visible on her ear. "
-                    "The earring is realistically sized — proportionate to her ear and face, "
-                    "as a real earring looks in a real photo. Natural expression, relaxed. "
-                    "Soft studio light with bokeh background. Earring in sharp focus."
+                "shot": (
+                    "A stunning three-quarter view portrait of a real woman. "
+                    "The earring is in perfect proportion, appearing small and refined. "
+                    "Soft natural window lighting, subtle bokeh. Photorealistic skin and hair."
                 ),
             },
             {
                 "key":   "09_model_windswept_action",
                 "label": "Model — Lifestyle Action Hair",
                 "shot":  (
-                    "A woman's profile with her hand brushing a single strand of hair behind her ear, clearly revealing the earring. "
-                    "Earring catches the light perfectly. Realistic natural skin and proportion. "
-                    "Warm natural daylight, lifestyle atmosphere, cinematic crop."
+                    "A woman's profile with her hand brushing hair behind her ear. "
+                    "Earring catches natural light perfectly. Realistic skin and proportions. "
+                    "Cinematic crop, lifestyle atmosphere."
+                ),
+            },
+            {
+                "key":   "12_model_ear_macro_skin",
+                "label": "Model — Extreme Ear Macro",
+                "shot":  (
+                    "Extreme macro of the earring on a real woman's earlobe. "
+                    "Razor-sharp focus on the stones, showing natural skin pores and texture. "
+                    "Soft natural light, authentic luxury editorial."
                 ),
             },
         ],
@@ -367,59 +352,62 @@ CATEGORIES = {
                 "key":   "01_product_front",
                 "label": "Product — Pendant Front",
                 "shot":  (
-                    "The pendant alone (no chain), shot straight-on from the front at eye level. "
-                    "All stone and metal details fully visible. Soft light grey neutral background, even studio lighting."
+                    "The pendant alone on a piece of creamy marble, shot straight-on. "
+                    "All details visible. Soft natural directional light, organic shadows."
                 ),
             },
             {
                 "key":   "02_product_glamour",
                 "label": "Product — Pendant Glamour 45°",
                 "shot":  (
-                    "The pendant hanging on its chain, shot from a 45-degree glamour angle, slightly elevated. "
-                    "Shows depth, bail, and how pendant hangs.Soft light grey neutral background."
+                    "The pendant hanging on its chain against a luxury natural stone surface. "
+                    "Shot from a 45-degree angle. Natural side lighting, professional product look."
                 ),
             },
             {
                 "key":   "03_product_top_down",
                 "label": "Product — Top-Down",
                 "shot":  (
-                    "The pendant lying flat, shot from directly above. "
-                    "Full surface layout visible. Soft light grey neutral background."
+                    "The pendant lying flat on a creamy marble surface, shot from directly above. "
+                    "Natural morning light catching the metal polish. Sharp focus."
                 ),
             },
             {
                 "key":   "04_product_back",
                 "label": "Product — Back Detail",
                 "shot":  (
-                    "The back of the pendant shown clearly. "
-                    "Shows any engravings, bail attachment, or back plate. "
-                    "Soft light grey neutral background, even studio lighting."
+                    "The back of the pendant shown clearly on a natural stone surface. "
+                    "Shows engravings and bail attachment. Realistic light, sharp focus."
                 ),
             },
         ],
         "model": [
             {
-                "key":   "05_model_collarbone",
+                "key": "05_model_collarbone",
                 "label": "Model — Pendant on Collarbone",
-                "shot":  (
-                    "A real woman wearing the pendant on her neck. "
-                    "Shot from the front, framing collarbone to chin. "
-                    "The pendant rests naturally on her collarbone at its REAL, natural size — "
-                    "a pendant is typically 15-30mm wide, sitting small and elegant on the chest. "
-                    "It must NOT appear oversized or exaggerated — it should look exactly as "
-                    "a real pendant looks around a real person's neck in a real photograph. "
-                    "Soft studio light, clean neutral background. Pendant in sharp focus."
+                "shot": (
+                    "A high-end editorial jewelry portrait of a real woman wearing the pendant. "
+                    "Pendant rests naturally at its true-to-life size (15-30mm). "
+                    "Soft natural lighting highlights the skin's real texture. "
+                    "Perfect focus on the piece."
                 ),
             },
             {
-                "key":   "06_model_pendant_macro",
+                "key": "06_model_pendant_macro",
                 "label": "Model — Pendant Macro Close-Up",
-                "shot":  (
-                    "Close-up photograph of the pendant resting on a real woman's chest/collarbone. "
-                    "The pendant is at its TRUE, REAL-WORLD SIZE relative to the skin — "
-                    "small and delicate as it actually appears in real life. "
-                    "Shallow depth of field — pendant razor-sharp, skin softly blurred. "
-                    "Warm natural light. Real skin texture. Feels like a genuine editorial jewelry photo."
+                "shot": (
+                    "An exquisite macro photograph of the pendant on a real woman's skin. "
+                    "Pendant is at its true, delicate scale. Natural lighting, catching stone facets. "
+                    "Shallow depth of field, photorealistic luxury."
+                ),
+            },
+            {
+                "key": "09_model_lifestyle_holding",
+                "label": "Model — Holding Pendant",
+                "shot": (
+                    "A real woman's hand gently touching or holding the pendant while wearing it. "
+                    "Natural window light, realistic skin and nail texture. "
+                    "Authentic, high-end lifestyle photography."
                 ),
             },
         ],
@@ -433,53 +421,60 @@ CATEGORIES = {
                 "key":   "01_product_upright",
                 "label": "Product — Upright Front",
                 "shot":  (
-                    "The bangle standing upright on a soft light grey neutral surface, shot straight-on. "
-                    "Full circle and all stones visible. Soft light grey neutral background, even studio lighting."
-                ),
-            },
-            {
-                "key":   "02_product_top_down",
-                "label": "Product — Top-Down",
-                "shot":  (
-                    "The bangle lying flat, shot from directly above (top-down). "
-                    "Full circle and all surface details visible. Soft light grey neutral background."
+                    "The bangle standing upright on a textured creamy marble surface, shot straight-on. "
+                    "Balanced natural light, organic shadows, clean and realistic."
                 ),
             },
             {
                 "key":   "03_product_glamour",
                 "label": "Product — Glamour 45°",
                 "shot":  (
-                    "The bangle at a 45-degree glamour angle, camera slightly elevated. "
-                    "Shows stones and depth simultaneously. Soft light grey neutral background."
+                    "The bangle at a 45-degree angle on a luxury natural stone surface. "
+                    "Shows stones and depth with dramatic side lighting."
+                ),
+            },
+            {
+                "key":   "02_product_top_down",
+                "label": "Product — Top-Down",
+                "shot":  (
+                    "The bangle lying flat on a creamy marble surface, shot from above. "
+                    "Natural window light, shallow depth of field, sharp focus on stones."
                 ),
             },
             {
                 "key":   "04_product_side",
                 "label": "Product — Side Profile",
                 "shot":  (
-                    "The bangle standing upright, shot from a 90-degree side profile. "
-                    "Shows the width, stone arrangement along the edge. Soft light grey neutral background."
+                    "The bangle standing upright on a natural stone surface, 90-degree side profile. "
+                    "Shows width and stone arrangement. Realistic lighting."
                 ),
             },
         ],
         "model": [
             {
-                "key":   "05_model_wrist_front",
+                "key": "05_model_wrist_front",
                 "label": "Model — Wrist Front",
-                "shot":  (
-                    "A real female wrist, natural skin, bangle at its REAL natural size. "
-                    "A bangle is a rigid circle that fits around the wrist, typically 60-65mm diameter — "
-                    "it should look proportionate on the wrist, not oversized. "
-                    "Hand gracefully posed, shot front-on. Clean neutral background, soft studio light."
+                "shot": (
+                    "A professional commercial shot of a real female wrist wearing the bangle at "
+                    "its natural size. Soft natural lighting, clean background, "
+                    "natural skin texture (pores visible). 100% photorealistic."
                 ),
             },
             {
-                "key":   "06_model_wrist_lifestyle",
+                "key": "06_model_wrist_lifestyle",
                 "label": "Model — Wrist Lifestyle",
-                "shot":  (
-                    "A real woman's wrist with the bangle at realistic scale, hand resting naturally. "
-                    "Soft natural light, blurred background. Candid, real lifestyle feel. "
-                    "The bangle is sized correctly as it would appear in a real photograph."
+                "shot": (
+                    "A relaxed, lifestyle jewelry photograph with the bangle on a real woman's wrist. "
+                    "Natural light source, bokeh background, sharp focus on the bangle. "
+                    "Real-person proportions."
+                ),
+            },
+            {
+                "key": "09_model_stacked_chic",
+                "label": "Model — Stacked Style",
+                "shot": (
+                    "The bangle worn alongside a delicate watch or another thin bracelet. "
+                    "Fashion-forward, luxury lifestyle look. Natural window light."
                 ),
             },
         ],
@@ -493,54 +488,60 @@ CATEGORIES = {
                 "key":   "01_product_flat_lay",
                 "label": "Product — Flat Lay",
                 "shot":  (
-                    "The anklet laid flat on a soft light grey neutral surface, chain in a natural arc. "
-                    "Shot top-down from directly above. Full length and all details visible."
+                    "The anklet laid flat on a creamy marble surface, shot top-down. "
+                    "Natural window light, real-world shadows, sharp focus on detail."
                 ),
             },
             {
                 "key":   "02_product_glamour",
-                "label": "Product — Glamour Angle",
+                "label": "Product — Glamour 45°",
                 "shot":  (
-                    "The anklet draped naturally, shot from a 45-degree angle. "
-                    "Shows depth and any charms or stones. Soft light grey neutral background."
+                    "The anklet draped naturally at a 45-degree angle on a luxury natural stone surface. "
+                    "Soft directional light, luxury jewelry photography atmosphere."
                 ),
             },
             {
                 "key":   "03_product_hanging",
                 "label": "Product — Hanging Display",
                 "shot":  (
-                    "The anklet hanging vertically as if on an ankle, shot straight-on. "
-                    "Full length of chain visible. Soft light grey neutral background."
+                    "The anklet hanging vertically against a creamy marble surface. "
+                    "Full length of chain visible. Natural lighting, realistic shadows."
                 ),
             },
             {
                 "key":   "04_product_charm_close",
                 "label": "Product — Charm/Stone Close-Up",
                 "shot":  (
-                    "Close-up of any charms or stones on the anklet. "
-                    "Every detail sharp. Soft light grey neutral background, macro studio lighting."
+                    "Close-up of any charms or stones on a natural stone surface. "
+                    "Macro photography, extremadamente shallow depth of field, sharp focus."
                 ),
             },
         ],
         "model": [
             {
-                "key":   "05_model_ankle_front",
+                "key": "05_model_ankle_front",
                 "label": "Model — Ankle Front",
-                "shot":  (
-                    "A real woman's ankle and foot, natural skin. "
-                    "The anklet sits naturally around the ankle at its REAL size — "
-                    "an anklet wraps a 20-25cm ankle, delicate and proportionate. "
-                    "Foot gracefully pointed or relaxed. Shot front-on. "
-                    "Clean background, soft natural light. Anklet in sharp focus. Real, human."
+                "shot": (
+                    "A professional photograph of a real woman's ankle with the anklet "
+                    "at its true natural size. Soft natural lighting, real skin textures. "
+                    "Sharp focus on the jewelry."
                 ),
             },
             {
-                "key":   "06_model_ankle_lifestyle",
+                "key": "06_model_ankle_lifestyle",
                 "label": "Model — Ankle Lifestyle",
-                "shot":  (
-                    "A real woman relaxing, anklet at its natural, realistic scale on her ankle. "
-                    "She may be seated with legs extended, or on soft fabric. "
-                    "Natural soft light, soft background. Candid, real lifestyle feel."
+                "shot": (
+                    "A lifestyle photograph of a real woman's ankle on soft cotton fabric. "
+                    "Natural warm light, shallow depth of field, authentic and photorealistic."
+                ),
+            },
+            {
+                "key": "09_model_sand_lifestyle",
+                "label": "Model — Beach Lifestyle",
+                "shot": (
+                    "A real woman's ankle with the anklet, resting on natural sand. "
+                    "Golden hour lighting, realistic skin and sand texture. "
+                    "High-end vacation vibe."
                 ),
             },
         ],
@@ -554,55 +555,60 @@ CATEGORIES = {
                 "key":   "01_product_front",
                 "label": "Product — Front Hero",
                 "shot":  (
-                    "The brooch flat on a soft light grey neutral surface, shot top-down from directly above. "
-                    "All stones and metalwork fully visible, perfect symmetry. "
-                    "Even studio lighting. Soft light grey neutral background."
+                    "The brooch flat on a creamy marble surface, shot top-down. "
+                    "All stones visible. Natural side lighting creating rich depth and shadows."
                 ),
             },
             {
                 "key":   "02_product_glamour",
-                "label": "Product — Glamour Angle",
+                "label": "Product — Glamour 45°",
                 "shot":  (
-                    "The brooch propped at a slight angle, shot from 45 degrees, camera slightly elevated. "
-                    "Shows face, depth, and dimension. Dramatic studio lighting,"
+                    "The brooch propped on a luxury natural stone surface, shot from 45 degrees. "
+                    "Dramatic natural lighting, luxury editorial style."
                 ),
             },
             {
                 "key":   "03_product_side",
                 "label": "Product — Side Profile",
                 "shot":  (
-                    "The brooch shot from a 90-degree side profile. "
-                    "Shows the pin mechanism and depth of the piece. Soft light grey neutral background."
+                    "The brooch shot from a 90-degree side profile on a creamy marble surface. "
+                    "Shows pin mechanism. Realistic lighting, sharp focus."
                 ),
             },
             {
                 "key":   "04_product_stone_close",
                 "label": "Product — Stone Close-Up",
                 "shot":  (
-                    "Extreme close-up of the brooch stones and setting. Every facet visible. "
-                    "Soft light grey neutral background, macro studio lighting."
+                    "Extreme close-up of the brooch stones on a natural stone surface. "
+                    "Macro studio lighting, extremadamente shallow depth of field, razor-sharp facets."
                 ),
             },
         ],
         "model": [
             {
-                "key":   "05_model_lapel_front",
+                "key": "05_model_lapel_front",
                 "label": "Model — Lapel Front",
-                "shot":  (
-                    "A real woman wearing the brooch pinned on the lapel of a blazer or coat. "
-                    "The brooch is at its REAL natural size — proportionate to the lapel, "
-                    "not oversized or exaggerated. Shot straight-on from the front. "
-                    "Soft studio light, neutral background. Natural, elegant, photorealistic."
+                "shot": (
+                    "A sophisticated luxury jewelry photograph of a real woman wearing the "
+                    "brooch on a wool blazer. Brooch is at true-to-life scale. "
+                    "Professional natural lighting, realistic fabric and skin detail."
                 ),
             },
             {
-                "key":   "06_model_lapel_close",
+                "key": "06_model_lapel_close",
                 "label": "Model — Lapel Close-Up",
-                "shot":  (
-                    "Close-up of the brooch pinned on a real woman's lapel or jacket. "
-                    "The brooch appears at its true, real-world scale on the fabric. "
-                    "Brooch in sharp focus, fabric texture visible. Shallow depth of field. "
-                    "Natural light. Genuine editorial jewelry photography style."
+                "shot": (
+                    "An editorial close-up of the brooch on a real woman's lapel. "
+                    "Natural size relative to fabric weave. Shallow depth of field, "
+                    "organic lighting, high-end brand quality."
+                ),
+            },
+            {
+                "key": "09_model_scarf_lifestyle",
+                "label": "Model — Scarf Accessory",
+                "shot": (
+                    "The brooch pinned to a scarf worn by a real woman. "
+                    "Natural window light, realistic fabric textures, authentic luxury feel."
                 ),
             },
         ],
@@ -627,89 +633,86 @@ def resolve_category(raw: str) -> str:
 async def extract_design_lock(
     client: genai.Client, img: bytes, mime: str, category: str, worn_on: str, shot_labels: list[str]
 ) -> tuple[str, str, list[str]]:
-    print("Locking design details and picking best angles (simplified)...")
+    print("Locking design details and picking best angles (optimized single-call)...")
     
-    # First: Get a pure, precise description of the design (like generate_images.py)
-    desc_resp = await client.aio.models.generate_content(
-        model=MODEL,
-        contents=[
-            types.Part.from_bytes(data=img, mime_type=mime),
-            types.Part.from_text(text=f"""
-Look at this {category} image very carefully.
-Describe ONLY what you actually see — do not invent, add, or assume anything.
-
-Write a precise description covering:
-1. Metal: exact color and finish as it appears in the image
-2. Main stone(s): exact shape, cut, color, size as visible
-3. Setting: exactly as it appears (prong count, halo, bezel, etc.)
-4. Secondary stones: exactly as visible (placement, size, cut)
-5. Band/chain/structure: exactly as it appears
-6. Any visible engravings, texture, or decorative elements
-7. Overall shape, size, and proportions as seen in the image
-
-Start with: "This {category} has..."
-Describe only what is visible. Do not add anything not in the image.
-Write as one paragraph. Be precise and specific about actual dimensions and scale.
-"""),
-        ],
-        config=types.GenerateContentConfig(response_modalities=["TEXT"]),
-    )
-    design_lock = "".join(
-        p.text for p in desc_resp.candidates[0].content.parts
-        if hasattr(p, "text") and p.text
-    ).strip()
-    
-    # Second: Briefly ask for the existing angle and recommendations, feeding it the description
     shots_list_text = "\n".join([f"- {label}" for label in shot_labels])
-    angle_resp = await client.aio.models.generate_content(
+    
+    # COMBINED SINGLE CALL: Description + Angle Analysis + Recommendations
+    resp = await client.aio.models.generate_content(
         model=MODEL,
         contents=[
             types.Part.from_bytes(data=img, mime_type=mime),
             types.Part.from_text(text=f"""
-Based on this {category} image:
-1. Identify which of the following standard camera angles best matches the reference image:
+Look at this {category} image very carefully. 
+Your primary goal is POINT-TO-POINT fidelity. 
+Perform the following technical analysis in one pass:
+
+1. DESIGN DESCRIPTION:
+Write a precise paragraph describing the metal, main stones, setting, and proportions.
+Be extremely detailed about stone counts, stone positions (relative to each other), and exact cuts.
+Mention the exact arrangement (e.g., "5 stones on the left, 5 on the right").
+If it is a cluster or halo, count the stones precisely.
+Start with: "This {category} has..."
+
+2. ANGLE IDENTIFICATION:
+Identify which of these standard camera angles best matches the reference image:
 {shots_list_text}
 - Unknown
 
-2. Based on the unique geometry and design, please carefully select exactly {TOTAL_PRODUCT} strictly Product shots and exactly {TOTAL_MODEL} strictly Model shots from the list above that will present this exact item perfectly in an e-commerce gallery. Do not recommend the "Unknown" angle or the exact angle you identified as the original image's angle. Format your picks exactly as:
-RECOMMENDED: [Label1], [Label2], [Label3], etc.
+3. SHOT RECOMMENDATIONS:
+Select exactly {int(TOTAL_PRODUCT)} Product shots from the list above that would best showcase this design.
+MANDATORY VARIETY RULES:
+- DO NOT select the angle identified in Step 2.
+- DO NOT select angles that are visually similar to the reference image.
+- MUST provide a 360-degree coverage (e.g., if ref is Front, pick Top-Down, Side, and 3/4).
+- Prioritize angles that reveal details NOT visible in the reference image.
 
-At the very end of your response, you MUST append:
+Format your entire response exactly as follows:
+DESCRIPTION: [Your paragraph here]
 ANGLE: [The exact label of the original angle]
+RECOMMENDED: [Label1], [Label2], [Label3]
+
+STRICT RULE: DO NOT CHANGE THE DESIGN. DO NOT ADD OR REMOVE ANY DIAMOND OR DETAIL. SAME TO SAME.
 """),
         ],
         config=types.GenerateContentConfig(response_modalities=["TEXT"]),
     )
     
-    angle_text = "".join(
-        p.text for p in angle_resp.candidates[0].content.parts
+    full_text = "".join(
+        p.text for p in resp.candidates[0].content.parts
         if hasattr(p, "text") and p.text
     ).strip()
     
-    parts = angle_text.split("ANGLE:")
-    existing_angle = parts[1].strip() if len(parts) > 1 else "Unknown"
-    
+    # Parse the combined response
+    design_lock = "Unknown design"
+    if "DESCRIPTION:" in full_text:
+        design_lock = full_text.split("DESCRIPTION:")[1].split("ANGLE:")[0].strip()
+        
+    existing_angle = "Unknown"
+    if "ANGLE:" in full_text:
+        existing_angle = full_text.split("ANGLE:")[1].split("RECOMMENDED:")[0].strip()
+        
     recommended_labels = []
-    if "RECOMMENDED:" in angle_text:
-        rec_part = angle_text.split("RECOMMENDED:")[1].split("ANGLE:")[0]
-        recs = rec_part.strip().split(",")
+    if "RECOMMENDED:" in full_text:
+        rec_part = full_text.split("RECOMMENDED:")[1].strip()
+        recs = rec_part.split(",")
         recommended_labels = [r.strip() for r in recs if r.strip()]
         
     return design_lock, existing_angle, recommended_labels
 
 
 # Strict rules injected into every prompt
-DESIGN_LOCK_RULES = """
-ABSOLUTE RULES — MUST NOT BE BROKEN:
-1. Reproduce ONLY what is described above and shown in the reference image
-2. Do NOT add any stone, element, or detail not in the reference
-3. Do NOT remove any stone, element, or detail that IS in the reference
-4. Do NOT change the metal color — keep it exactly as in the reference
-5. Do NOT change any stone color, shape, or cut
-6. Do NOT change proportions, dimensions, or silhouette
-7. Do NOT "improve", "simplify", or "stylize" the design in any way
-8. Reproduce it exactly — a faithful render, not a reinterpretation
-9. NO SPARKLES ALLOWED: Do not draw artificial starbursts, lens flares, or exaggerated AI sparkles on the diamonds. The stones must look like real, raw photography.
+DESIGN_LOCK_RULES = f"""
+ABSOLUTE RULES — POINT-TO-POINT FIDELITY:
+1. REPRODUCE THE DESIGN EXACTLY: Every single point, curve, and stone MUST match the reference image.
+2. NO CREATIVITY: Do NOT add, remove, or modify even a single microscopic detail.
+3. DIAMOND FIDELITY: Every diamond's position, cut, and size must remain identical to the original.
+4. METAL COLOR: Keep the metal color and finish (polished, matte, hammered) exactly as shown.
+5. NO SPARKLES: Do not add artificial sparkles, lens flares, or AI-generated "glow".
+6. SAME TO SAME: The goal is a perfect replica from a different angle, not an "improved" version.
+7. DO NOT INVENT: If a detail isn't visible or described, do not invent one.
+
+{GLOBAL_THEME_RULES}
 """
 
 ANGLE_RULES = """
@@ -735,6 +738,64 @@ CRITICAL REALISM AND SCALE RULES:
 - The final image must be indistinguishable from a real luxury jewelry brand photograph
 """
 
+PHOTOGRAPHY_REALISM_RULES = """
+STRICT PHOTOGRAPHY REALISM RULES:
+1. RAW PHOTOGRAPHY STYLE: The image must look like a raw, unedited photograph from a high-end Leica or Hasselblad camera. No "AI glow" or plastic-looking surfaces.
+2. NATURAL LIGHTING ONLY: Use side-window lighting, soft natural shadows, and organic light falloff. NO even studio lighting. NO artificial-looking point lights.
+3. AUTHENTIC METAL TEXTURE: Metal (gold, silver, platinum) must show microscopic texture, subtle reflections, and natural polish — NOT perfectly smooth or liquid-looking.
+4. TEXTURED BACKGROUNDS: Use realistic, high-end materials like textured linen, dark silk, organic wood, or honed marble. The background should have depth and grain.
+5. REAL DEPTH OF FIELD: Macro shots MUST have a razor-thin depth of field with creamy bokeh (blurred background). Model shots should have natural eye-level focus.
+6. FILM COLOR GRADING: Use natural, muted, organic color tones. NO oversaturation. No neon colors. The palette must feel expensive and understated.
+"""
+
+
+def apply_logo_overlay(image_path: Path):
+    """
+    Applies the Riolls logo to the bottom-right corner of the image.
+    """
+    if not os.path.exists(LOGO_PATH):
+        print(f"Logo not found at {LOGO_PATH}, skipping watermark.")
+        return
+
+    try:
+        with Image.open(image_path) as base_img:
+            # Open logo and ensure it has an alpha channel
+            logo = Image.open(LOGO_PATH).convert("RGBA")
+            
+            # Scale logo to ~12% width of the base image
+            base_w, base_h = base_img.size
+            logo_w, logo_h = logo.size
+            scale_factor = (base_w * 0.12) / logo_w
+            new_size = (int(logo_w * scale_factor), int(logo_h * scale_factor))
+            logo = logo.resize(new_size, Image.Resampling.LANCZOS)
+            
+            # Position: Bottom-right with 5% padding
+            padding_x = int(base_w * 0.05)
+            padding_y = int(base_h * 0.05)
+            pos_x = base_w - logo.width - padding_x
+            pos_y = base_h - logo.height - padding_y
+            
+            # Create overlay
+            overlay = Image.new("RGBA", base_img.size, (0, 0, 0, 0))
+            overlay.paste(logo, (pos_x, pos_y), logo)
+            
+            # Composite and save (preserve format)
+            if base_img.mode != "RGBA":
+                base_img = base_img.convert("RGBA")
+            
+            final_img = Image.alpha_composite(base_img, overlay)
+            
+            # Convert back if needed (e.g. for JPEG)
+            if image_path.suffix.lower() in [".jpg", ".jpeg"]:
+                final_img = final_img.convert("RGB")
+                final_img.save(image_path, "JPEG", quality=95)
+            else:
+                final_img.save(image_path)
+                
+            print(f"Applied logo to {image_path.name}")
+            
+    except Exception as e:
+        print(f"Error applying logo to {image_path}: {e}")
 
 async def generate_image(
     client:      genai.Client,
@@ -751,16 +812,23 @@ async def generate_image(
 
     if is_model:
         prompt = f"""
-You are generating a REALISTIC jewelry photograph for a luxury brand.
-
-JEWELRY PIECE ({category}, worn on {worn_on}):
-{design_lock}
-
-The text below describes the exact piece. Study it carefully.
-
 {DESIGN_LOCK_RULES}
 
+MANDATORY DESIGN FIDELITY FOR MODEL SHOT:
+- ABSOLUTELY NO DESIGN DRIFT: Every stone, prong, and metal curve must be IDENTICAL to the reference.
+- NO POSITION CHANGES: Do not move stones, do not change their relative positions.
+- THE JEWELRY IS THE MASTER: The hand must adapt to the jewelry, NOT the other way around.
+- "POINT-TO-POINT" ACCURACY: If the reference has 10 stones, the generation MUST have 10 stones in the exact same pattern.
+
+JEWELRY PIECE TO RENDER ({category}, worn on {worn_on}):
+{design_lock}
+
+STRICT CONTEXT:
+Study the description above and the reference image. Your goal is a perfect 1:1 replica of the jewelry design, just placed on a real human {worn_on}.
+
 {REALISM_SCALE_RULE}
+
+{PHOTOGRAPHY_REALISM_RULES}
 
 {ANGLE_RULES}
 
@@ -769,10 +837,10 @@ CAMERA ANGLE / SHOT COMPOSITION:
 THIS CAMERA ANGLE IS MANDATORY. RENDER THIS PRECISE PERSPECTIVE.
 
 ADDITIONAL REALISM RULES:
-- Real human skin: natural texture, pores, warmth — NOT plastic or AI-smooth
-- Natural lighting that looks like a real photograph taken by a professional photographer
-- The jewelry must match the reference image design exactly
-- The overall image must be photorealistic and indistinguishable from a real photo
+- Real human skin: natural texture, pores, warmth — NOT plastic or AI-smooth. Pores and fine lines must be visible.
+- Natural lighting that looks like a real photograph taken by a professional photographer. Natural shadows are mandatory.
+- The jewelry must match the reference image design exactly. No extra stones, no missing pieces.
+- The overall image must be photorealistic and indistinguishable from a real photo.
 """
     else:
         prompt = f"""
@@ -785,6 +853,8 @@ The text below describes the exact piece. Study it carefully.
 
 {DESIGN_LOCK_RULES}
 
+{PHOTOGRAPHY_REALISM_RULES}
+
 {ANGLE_RULES}
 
 CAMERA ANGLE / SHOT COMPOSITION:
@@ -792,10 +862,10 @@ CAMERA ANGLE / SHOT COMPOSITION:
 THIS CAMERA ANGLE IS MANDATORY. RENDER THIS PRECISE PERSPECTIVE.
 
 PRODUCT SHOT RULES:
-- Soft light grey or warm cream neutral background (NOT pure white)
-- Professional studio lighting with soft gradient shadow beneath the piece
-- The jewelry must match the reference image exactly
-- Photorealistic quality, sharp focus on the jewelry
+- Soft directional natural lighting with organic shadows
+- Use the background texture specified in the shot description
+- The jewelry must match the reference image exactly. No extra stones, no missing pieces.
+- Photorealistic quality, razor-sharp focus on the jewelry, shallow depth of field
 """
 
     try:
@@ -814,12 +884,19 @@ PRODUCT SHOT RULES:
         )
 
         for part in resp.candidates[0].content.parts:
-            if getattr(part, "inline_data", None):
-                out_bytes = part.inline_data.data
-                ext       = "png" if "png" in getattr(part.inline_data, "mime_type", "") else "jpg"
+            # Safely check for inline_data to avoid type errors
+            inline_data = getattr(part, "inline_data", None)
+            if inline_data:
+                out_bytes = inline_data.data
+                mime_part = getattr(inline_data, "mime_type", "")
+                ext       = "png" if "png" in mime_part else "jpg"
                 filename  = f"{shot['key']}.{ext}"
                 save_path = out_dir / filename
                 save_path.write_bytes(out_bytes)
+                
+                # Apply Branding Watermark
+                apply_logo_overlay(save_path)
+                
                 return {"url": f"/outputs/{session_id}/{filename}", "label": shot['label']}
 
         return None
@@ -835,9 +912,10 @@ async def generate_shots(image_bytes: bytes, mime_type: str, category_raw: str, 
 
     category = resolve_category(category_raw)
     cat      = CATEGORIES[category]
-    worn_on  = cat["worn_on"]
+    worn_on  = str(cat["worn_on"])
     
-    all_cat_shots = (
+    # Correctly type all_cat_shots as a list of tuples (dict, bool)
+    all_cat_shots: list[tuple[dict, bool]] = (
         [(s, False) for s in cat["product"]] +
         [(s, True)  for s in cat["model"]]
     )
@@ -852,16 +930,35 @@ async def generate_shots(image_bytes: bytes, mime_type: str, category_raw: str, 
     (out_dir / "design_lock.txt").write_text(design_lock + f"\n\nIdentified Existing Angle: {existing_angle}\nRecommended: {recommended_labels}", encoding="utf-8")
 
     # Filter out the existing angle to ensure we don't duplicate it
-    available_shots = [(s, is_m) for s, is_m in all_cat_shots if s["label"].lower() not in existing_angle.lower()]
+    # We use a stricter check: if the label contains any part of the identified angle
+    def is_angle_excluded(label: str, existing: str) -> bool:
+        if existing.lower() == "unknown": return False
+        l_low = label.lower()
+        e_low = existing.lower()
+        # If the identified angle is "Product — Front", exclude anything with "front"
+        keywords = ["front", "side", "top", "back", "macro", "profile", "hand"]
+        for kw in keywords:
+            if kw in e_low and kw in l_low:
+                return True
+        return e_low in l_low or l_low in e_low
+
+    available_shots = [(s, is_m) for s, is_m in all_cat_shots if not is_angle_excluded(s["label"], existing_angle)]
+    
+    # If filtering was too aggressive, fall back to simple exclusion
+    if not available_shots:
+        available_shots = [(s, is_m) for s, is_m in all_cat_shots if s["label"].lower() != existing_angle.lower()]
+    
+    # SHUFFLE available_shots to increase variety across different product runs
+    random.shuffle(available_shots)
     
     product_shots = [x for x in available_shots if not x[1]]
     model_shots = [x for x in available_shots if x[1]]
     
-    selected_shots = []
+    selected_shots: list = []
     
     # Process AI recommendations
-    ai_selected_products = []
-    ai_selected_models = []
+    ai_selected_products: list = []
+    ai_selected_models: list = []
     
     for rec_label in recommended_labels:
         for shot_tuple in available_shots:
@@ -873,35 +970,43 @@ async def generate_shots(image_bytes: bytes, mime_type: str, category_raw: str, 
                     ai_selected_products.append(shot_tuple)
                     
     # Pick Product Shots (Goal: TOTAL_PRODUCT)
-    selected_shots.extend(ai_selected_products[:TOTAL_PRODUCT])
-    if len(selected_shots) < TOTAL_PRODUCT:
+    selected_shots.extend(ai_selected_products[:int(TOTAL_PRODUCT)])
+    if len(selected_shots) < int(TOTAL_PRODUCT):
         remaining_prod = [x for x in product_shots if x not in selected_shots]
-        selected_shots.extend(remaining_prod[:TOTAL_PRODUCT - len(selected_shots)])
+        selected_shots.extend(remaining_prod[:int(TOTAL_PRODUCT) - len(selected_shots)])
         
     # Pick Model Shots (Goal: TOTAL_MODEL)
-    current_model_count = 0
-    for shot in ai_selected_models[:TOTAL_MODEL]:
-        selected_shots.append(shot)
-        current_model_count += 1
-        
-    if current_model_count < TOTAL_MODEL:
+    current_model_count = len([x for x in selected_shots if x[1]])
+    
+    selected_models_from_ai = ai_selected_models[:int(TOTAL_MODEL)]
+    for m_shot in selected_models_from_ai:
+        if m_shot not in selected_shots:
+            selected_shots.append(m_shot)
+            
+    current_model_count = len([x for x in selected_shots if x[1]])
+    if current_model_count < int(TOTAL_MODEL):
         remaining_model = [x for x in model_shots if x not in selected_shots]
-        selected_shots.extend(remaining_model[:TOTAL_MODEL - current_model_count])
+        selected_shots.extend(remaining_model[:int(TOTAL_MODEL) - current_model_count])
 
-    # If somehow we still haven't met the total target 6 (4+2), back-fill
-    total_target = TOTAL_PRODUCT + TOTAL_MODEL
+    # Final target check
+    total_target = int(TOTAL_PRODUCT) + int(TOTAL_MODEL)
     if len(selected_shots) < total_target:
         remaining = [x for x in available_shots if x not in selected_shots]
-        selected_shots.extend(remaining[:total_target - len(selected_shots)])
+        selected_shots.extend(remaining[:int(total_target) - len(selected_shots)])
 
-    results = await asyncio.gather(*[
-        generate_image(client, image_bytes, mime_type, design_lock, shot, out_dir, category, worn_on, is_model, session_id)
-        for shot, is_model in selected_shots
-    ], return_exceptions=True)
+    # Process 2 shots at a time to prevent server overload
+    final_results = []
+    chunk_size = 2
+    for i in range(0, len(selected_shots), chunk_size):
+        chunk = selected_shots[i : i + chunk_size]
+        chunk_results = await asyncio.gather(*[
+            generate_image(client, image_bytes, mime_type, design_lock, s, out_dir, category, worn_on, is_m, session_id)
+            for s, is_m in chunk
+        ], return_exceptions=True)
+        final_results.extend(chunk_results)
 
     # Filter out exceptions and Nones
-    valid_results = [r for r in results if isinstance(r, dict)]
-    return valid_results
+    return [r for r in final_results if isinstance(r, dict)]
 
 async def generate_shots_from_text(prompt_text: str, category_raw: str, session_id: str) -> list[dict]:
     if not GEMINI_API_KEY:
@@ -909,42 +1014,39 @@ async def generate_shots_from_text(prompt_text: str, category_raw: str, session_
 
     category = resolve_category(category_raw)
     cat      = CATEGORIES[category]
-    worn_on  = cat["worn_on"]
+    worn_on  = str(cat["worn_on"])
     
-    product_shots = [(s, False) for s in cat["product"]]
-    model_shots = [(s, True) for s in cat["model"]]
+    product_shots: list = [(s, False) for s in cat["product"]]
+    model_shots: list = [(s, True) for s in cat["model"]]
     
-    # Select EXACTLY 4 product and 2 model
-    selected_shots = []
+    # Shuffle for variety
+    random.shuffle(product_shots)
+    random.shuffle(model_shots)
     
-    if len(product_shots) >= TOTAL_PRODUCT:
-        selected_shots.extend(product_shots[:TOTAL_PRODUCT])
-    else:
-        selected_shots.extend(product_shots)
-        
-    if len(model_shots) >= TOTAL_MODEL:
-        selected_shots.extend(model_shots[:TOTAL_MODEL])
-    else:
-        selected_shots.extend(model_shots)
+    selected_shots: list = []
+    selected_shots.extend(product_shots[:int(TOTAL_PRODUCT)])
+    selected_shots.extend(model_shots[:int(TOTAL_MODEL)])
     
-    total_target = TOTAL_PRODUCT + TOTAL_MODEL
-    if len(selected_shots) < total_target:
+    total_target = int(TOTAL_PRODUCT) + int(TOTAL_MODEL)
+    if len(selected_shots) < int(total_target):
         remaining = [x for x in (product_shots + model_shots) if x not in selected_shots]
-        selected_shots.extend(remaining[:total_target - len(selected_shots)])
+        selected_shots.extend(remaining[:int(total_target) - len(selected_shots)])
 
     out_dir = Path("outputs") / session_id
     out_dir.mkdir(parents=True, exist_ok=True)
 
     client = genai.Client(api_key=GEMINI_API_KEY)
-
     design_lock = prompt_text
     (out_dir / "design_lock.txt").write_text(design_lock, encoding="utf-8")
 
-    results = await asyncio.gather(*[
-        generate_image(client, None, None, design_lock, shot, out_dir, category, worn_on, is_model, session_id)
-        for shot, is_model in selected_shots
-    ], return_exceptions=True)
+    final_results = []
+    chunk_size = 2
+    for i in range(0, len(selected_shots), chunk_size):
+        chunk = selected_shots[i : i + chunk_size]
+        chunk_results = await asyncio.gather(*[
+            generate_image(client, None, None, design_lock, s, out_dir, category, worn_on, is_m, session_id)
+            for s, is_m in chunk
+        ], return_exceptions=True)
+        final_results.extend(chunk_results)
 
-    # Filter out exceptions and Nones
-    valid_results = [r for r in results if isinstance(r, dict)]
-    return valid_results
+    return [r for r in final_results if isinstance(r, dict)]

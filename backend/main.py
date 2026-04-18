@@ -4,6 +4,7 @@ from fastapi.staticfiles import StaticFiles
 import uuid
 import os
 import shutil
+import aiohttp
 from pathlib import Path
 
 import urllib.request
@@ -29,32 +30,65 @@ outputs_dir.mkdir(exist_ok=True)
 # Mount outputs directory so frontend can fetch images
 app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
 
+async def download_image_bytes(url: str) -> tuple[bytes, str]:
+    """Download an image from a URL and return (bytes, mime_type)."""
+    import mimetypes
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url, timeout=aiohttp.ClientTimeout(total=30)) as resp:
+            if resp.status != 200:
+                raise HTTPException(status_code=400, detail=f"Could not download image from URL (HTTP {resp.status}).")
+            content_type = resp.headers.get("Content-Type", "")
+            if "text/html" in content_type:
+                raise HTTPException(status_code=400, detail="The URL points to a webpage, not a direct image file.")
+                
+            contents = await resp.read()
+            
+            if contents.startswith(b'<html') or contents.startswith(b'<!DOCTYPE') or contents.startswith(b'<HTML'):
+                raise HTTPException(status_code=400, detail="The URL returned an HTML webpage instead of an image.")
+
+            if not content_type.startswith("image/"):
+                content_type = mimetypes.guess_type(url)[0] or "image/jpeg"
+                
+            return contents, content_type
+
+
 @app.post("/api/generate")
 async def generate_jewelry_images(
     category: str = Form(...),
-    file: UploadFile = File(...)
+    product_id: str | None = Form(None),
+    file: UploadFile | None = File(None),
+    image_url: str | None = Form(None),
 ):
     try:
-        # Read uploaded image
-        contents = await file.read()
-        mime_type = file.content_type
-        
-        if not mime_type.startswith("image/"):
-            raise HTTPException(status_code=400, detail="Uploaded file must be an image.")
+        # ── Resolve image bytes ───────────────────────────────────────────────
+        if file and getattr(file, "filename", None):
+            contents = await file.read()
+            mime_type = file.content_type or "image/jpeg"
+            if not mime_type.startswith("image/"):
+                raise HTTPException(status_code=400, detail="Uploaded file must be an image.")
+        elif image_url and image_url.strip():
+            contents, mime_type = await download_image_bytes(image_url.strip())
+        else:
+            raise HTTPException(status_code=400, detail="Please upload an image file or provide an image URL.")
 
-        # Create unique session ID
-        session_id = str(uuid.uuid4())
+        # ── Resolve folder name / product ID ─────────────────────────────────
+        pid = product_id.strip() if product_id else ""
+        if not pid:
+            # Fallback for missing product_id: clean short ID
+            pid = f"gen-{str(uuid.uuid4())[:8]}"
 
-        # Generate images using the provided logic
+        # Generate images — folder = product ID
         results = await generate_shots(
             image_bytes=contents,
             mime_type=mime_type,
             category_raw=category,
-            session_id=session_id
+            session_id=pid
         )
 
-        return {"status": "success", "session_id": session_id, "images": results}
+        return {"status": "success", "product_id": pid, "session_id": pid, "images": results}
         
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -76,8 +110,6 @@ async def start_bulk_generation(
         if not file and not url:
             raise HTTPException(status_code=400, detail="Must provide an Excel file or a Google Sheets URL.")
             
-        job_id = str(uuid.uuid4())
-        
         temp_dir = Path("outputs") / "temp_excel"
         temp_dir.mkdir(parents=True, exist_ok=True)
         
@@ -88,23 +120,34 @@ async def start_bulk_generation(
                 raise HTTPException(status_code=400, detail="Could not extract document ID from URL.")
                 
             doc_id = match.group(1)
+            job_id = doc_id
             csv_export_url = f"https://docs.google.com/spreadsheets/d/{doc_id}/export?format=csv"
             
+            # Save as {job_id}_sheet.csv as per requirements
             file_path = temp_dir / f"{job_id}_sheet.csv"
-            urllib.request.urlretrieve(csv_export_url, file_path)
+            
+            # Skip downloading if the file already exists
+            if not file_path.exists():
+                urllib.request.urlretrieve(csv_export_url, file_path)
             
         elif file:
             # Validate Excel file
             if not file.filename.endswith(('.xlsx', '.xls', '.csv')):
                 raise HTTPException(status_code=400, detail="Uploaded file must be an Excel or CSV file.")
     
-            # Save Excel file temporarily
-            file_path = temp_dir / f"{job_id}_{file.filename}"
+            # Sanitize filename for job_id (no extension)
+            base_filename = os.path.splitext(file.filename)[0]
+            job_id = "".join(c for c in base_filename if c.isalnum() or c in (' ', '_', '-')).replace(" ", "_").lower()
+            
+            # Ensure folder name is clean
+            safe_filename = "".join(c for c in file.filename if c.isalnum() or c in ('.', '_', '-'))
+            file_path = temp_dir / safe_filename
             with open(file_path, "wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
                 
         elif url and url.startswith("http"):
             # They passed a direct image URL, create a dummy 1-row CSV for the bulk processor
+            job_id = f"direct_{str(uuid.uuid4())[:8]}"
             file_path = temp_dir / f"{job_id}_direct.csv"
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(f"Category,Image URL\n{category},{url}\n")
