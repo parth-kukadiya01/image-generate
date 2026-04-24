@@ -20,6 +20,7 @@ const CATEGORIES = [
   { id: 'bracelet', label: 'Bracelet', icon: '💫' },
   { id: 'earring', label: 'Earring', icon: '✨' },
   { id: 'pendant', label: 'Pendant', icon: '🔮' },
+  { id: 'pendant_set', label: 'Pendant Set', icon: '💎' },
   { id: 'bangle', label: 'Bangle', icon: '⭕' },
   { id: 'anklet', label: 'Anklet', icon: '⛓️' },
   { id: 'brooch', label: 'Brooch', icon: '🏵️' },
