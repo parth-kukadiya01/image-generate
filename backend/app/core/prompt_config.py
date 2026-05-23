@@ -1,19 +1,11 @@
-import os
-import asyncio
-import mimetypes
-import random
-from pathlib import Path
-from PIL import Image
-from google import genai
-from google.genai import types
+"""
+prompt_config.py
+────────────────
+Contains all the core prompt structures, scene dictionaries, and mapping rules
+for the jewelry generation platform. Abstracted from the generation logic
+to allow scaling the project easily.
+"""
 
-GEMINI_API_KEY = "AIzaSyBRYRW4UxifNDI65wArxv0wWbDcACXWuyI"
-MODEL          = "gemini-2.5-flash-image" # Correcting to the intended model if approved
-TOTAL_PRODUCT  = 4
-TOTAL_MODEL    = 0
-LOGO_PATH      = "/Users/parthkukadiya/work/pint_automation/riolls_logo.png"
-
-# BRAND THEME CONSISTENCY
 GLOBAL_THEME_RULES = """
 BRAND VISUAL IDENTITY (THEME):
 - BACKGROUND: Use a high-end, textured "Creamy Marble" or luxury natural light stone surface for all product shots.
@@ -22,6 +14,246 @@ BRAND VISUAL IDENTITY (THEME):
 - DO NOT use different backgrounds or inconsistent lighting across shots.
 """
 
+# Reconstructed 30+ Creative Scenes for the UI Dropdown
+CREATIVE_SCENES = [
+    {
+        "key": "social_01_books",
+        "label": "Creative — Antique Books",
+        "shot": "The jewelry placed gracefully on an open antique book with slightly yellowed pages. Soft, natural light illuminating the piece.",
+        "is_model": False
+    },
+    {
+        "key": "social_02_white_coral",
+        "label": "Creative — White Coral",
+        "shot": "The jewelry resting on a piece of white sea coral. Organic, beach-inspired luxury aesthetic. Bright, crisp natural light.",
+        "is_model": False
+    },
+    {
+        "key": "social_03_champagne",
+        "label": "Creative — Champagne Glass",
+        "shot": "The jewelry draped on or sitting next to a crystal champagne coupe glass. Elegant, celebratory luxury atmosphere.",
+        "is_model": False
+    },
+    {
+        "key": "social_04_minimal_stack",
+        "label": "Creative — Minimalist Stack",
+        "shot": "The jewelry placed on a minimalist stack of high-end fashion magazines or art books. Modern, clean aesthetic.",
+        "is_model": False
+    },
+    {
+        "key": "social_05_silk_sheets",
+        "label": "Creative — Silk Sheets",
+        "shot": "The jewelry resting softly on unmade, luxurious white silk bed sheets. Intimate, morning light aesthetic.",
+        "is_model": False
+    },
+    {
+        "key": "social_06_coffee_cup",
+        "label": "Creative — Morning Coffee",
+        "shot": "A high-end lifestyle shot of the jewelry placed on a saucer next to an elegant ceramic coffee cup. Warm morning light.",
+        "is_model": False
+    },
+    {
+        "key": "social_07_marble_pedestal",
+        "label": "Creative — Marble Pedestal",
+        "shot": "The jewelry displayed on a sleek, geometric marble pedestal. Museum-like, high-fashion presentation.",
+        "is_model": False
+    },
+    {
+        "key": "social_08_flower_petals",
+        "label": "Creative — Rose Petals",
+        "shot": "The jewelry resting among scattered, fresh white rose petals. Romantic, soft, and elegant.",
+        "is_model": False
+    },
+    {
+        "key": "social_09_champagne_confetti",
+        "label": "Creative — Celebration Confetti",
+        "shot": "The jewelry placed among subtle, golden celebration confetti on a dark surface. Festive luxury.",
+        "is_model": False
+    },
+    {
+        "key": "social_10_red_ginger_flower",
+        "label": "Creative — Exotic Flora",
+        "shot": "The jewelry resting on or near a vibrant red tropical ginger flower. High contrast, exotic aesthetic.",
+        "is_model": False
+    },
+    {
+        "key": "social_11_velvet_box",
+        "label": "Creative — Velvet Box",
+        "shot": "The jewelry inside an open, premium black velvet ring box. Classic, timeless presentation.",
+        "is_model": False
+    },
+    {
+        "key": "social_12_sunlight_shadows",
+        "label": "Creative — Harsh Sunlight & Shadows",
+        "shot": "The jewelry placed on a plain surface with harsh, dramatic sunlight creating strong geometric shadows (like a window blind shadow).",
+        "is_model": False
+    },
+    {
+        "key": "social_13_dark_slate",
+        "label": "Creative — Dark Slate",
+        "shot": "The jewelry on a rough, dark grey slate stone. Moody, masculine, and dramatic contrast.",
+        "is_model": False
+    },
+    {
+        "key": "social_14_beige_sand",
+        "label": "Creative — Desert Sand",
+        "shot": "The jewelry placed on fine, beige desert sand with rippled wind textures. Warm, organic.",
+        "is_model": False
+    },
+    {
+        "key": "social_15_blue_pillar",
+        "label": "Creative — Blue Geometric Pillar",
+        "shot": "The jewelry on a striking cobalt blue geometric pillar or block. Modern art aesthetic.",
+        "is_model": False
+    },
+    {
+        "key": "social_16_ice_block",
+        "label": "Creative — Frozen Ice",
+        "shot": "The jewelry partially submerged or resting on a block of clear ice. Crisp, brilliant, and pure.",
+        "is_model": False
+    },
+    {
+        "key": "social_17_mirror_reflection",
+        "label": "Creative — Mirror Surface",
+        "shot": "The jewelry placed on a mirror surface, reflecting perfectly. Sleek and mesmerizing.",
+        "is_model": False
+    },
+    {
+        "key": "social_18_stone_slabs",
+        "label": "Creative — Stone Slabs",
+        "shot": "The jewelry resting on stacked, raw stone slabs. Earthy, grounded luxury.",
+        "is_model": False
+    },
+    {
+        "key": "social_19_water_drops",
+        "label": "Creative — Water Drops",
+        "shot": "The jewelry on a waterproof dark surface with perfect, distinct water droplets surrounding it. Fresh and clean.",
+        "is_model": False
+    },
+    {
+        "key": "social_20_smooth_beige",
+        "label": "Creative — Smooth Beige Seamless",
+        "shot": "The jewelry on a perfectly smooth, seamless beige background with extremely soft gradient lighting.",
+        "is_model": False
+    },
+    {
+        "key": "social_21_vibrant_pink",
+        "label": "Creative — Vibrant Pink",
+        "shot": "The jewelry on a vibrant, punchy pink background. Bold, youthful, fashion-forward.",
+        "is_model": False
+    },
+    {
+        "key": "social_22_dark_mossy_wood",
+        "label": "Creative — Dark Wood & Moss",
+        "shot": "The jewelry on aged, dark wood with small accents of forest moss. Enchanted, natural.",
+        "is_model": False
+    },
+    {
+        "key": "social_23_vogue_close_up",
+        "label": "Creative — Vogue Close-up",
+        "shot": "Extreme macro close-up of the jewelry with dramatic, high-fashion lighting. Every facet sparkles intensely.",
+        "is_model": False
+    },
+    {
+        "key": "social_24_golden_hour_riviera",
+        "label": "Creative — Riviera Golden Hour",
+        "shot": "The jewelry bathed in warm, golden-hour sunlight as if on a balcony overlooking the French Riviera.",
+        "is_model": False
+    },
+    {
+        "key": "social_25_silk_and_shadows",
+        "label": "Creative — Silk & Shadows",
+        "shot": "The jewelry resting on black silk with moody, dramatic shadows. Sensual and mysterious.",
+        "is_model": False
+    },
+    {
+        "key": "social_26_red_carpet_flash",
+        "label": "Creative — Red Carpet Flash",
+        "shot": "The jewelry illuminated by a harsh, direct paparazzi-style flash against a dark background.",
+        "is_model": False
+    },
+    {
+        "key": "social_27_water_reflections",
+        "label": "Creative — Aquatic Reflections",
+        "shot": "Avant-garde editorial photograph. The jewelry piece with shimmering caustic water reflections cast across the surface. Cool, sophisticated blue-toned lighting.",
+        "is_model": False
+    },
+    {
+        "key": "social_28_monochrome_elegance",
+        "label": "Studio — Monochrome Elegance",
+        "shot": "Premium luxury jewelry studio photography. The model (skin, hair, and clothing) is shot in crisp, high-contrast black-and-white, wearing an elegant black blazer. The background is a soft, warm beige textured surface (NOT black and white). CRITICAL MANDATE: THE JEWELRY ITSELF MUST NOT BE BLACK AND WHITE. The jewelry MUST be in full, highly saturated, true original color, creating a striking selective-color contrast against the monochrome model and warm background. Editorial luxury campaign style.",
+        "is_model": True
+    },
+    {
+        "key": "social_29_monochrome_noir",
+        "label": "Studio — Monochrome Silhouette",
+        "shot": "Ultra-premium jewelry studio photography. The model is shot in a stark, elegant black-and-white silhouette against a crisp studio grey seamless background. CRITICAL MANDATE: THE JEWELRY ITSELF MUST NOT BE BLACK AND WHITE. The jewelry MUST be fully illuminated by a dedicated studio spotlight in striking, vibrant true full color. Bvlgari editorial style.",
+        "is_model": True
+    },
+    {
+        "key": "social_30_monochrome_hollywood",
+        "label": "Studio — Old Hollywood Monochrome",
+        "shot": "Classic 1950s Old Hollywood style portrait photography. A model in glamorous black-and-white (soft glowing skin, deep shadows, vintage elegance). CRITICAL MANDATE: THE JEWELRY ITSELF MUST NOT BE BLACK AND WHITE. The entire scene is monochrome EXCEPT the jewelry, which is rendered in exquisite, photorealistic full true color.",
+        "is_model": True
+    },
+    {
+        "key": "social_31_monochrome_satin",
+        "label": "Studio — Monochrome Satin",
+        "shot": "Modern luxury studio photography. A model draped in black studio satin, photographed in highly detailed black-and-white. Crisp, clean commercial lighting. CRITICAL MANDATE: THE JEWELRY ITSELF MUST NOT BE BLACK AND WHITE. The entire scene is black-and-white EXCEPT the jewelry, which stands out brilliantly in full, exact color. Chopard campaign aesthetic.",
+        "is_model": True
+    },
+    {
+        "key": "social_32_linen_fabric",
+        "label": "Creative — Linen Fabric",
+        "shot": "The exact original jewelry piece delicately resting on soft, natural beige linen fabric with elegant, flowing folds. Soft, organic directional window lighting casting natural, subtle shadows. High-end lifestyle editorial aesthetic, warm and tactile.",
+        "is_model": False
+    },
+    {
+        "key": "social_33_dark_grey_stone",
+        "label": "Creative — Dark Grey Stone",
+        "shot": "The exact original jewelry piece placed on a raw, textured dark grey stone surface. Moody, directional studio lighting emphasizing the raw, organic texture of the stone against the refined polish of the jewelry. High-end lifestyle editorial aesthetic, earthy and dramatic.",
+        "is_model": False
+    },
+    {
+        "key": "social_34_noir_chiaroscuro",
+        "label": "Studio — Noir Chiaroscuro",
+        "shot": "Ultra-luxury black-and-white studio photography. The exact original jewelry piece illuminated by a sharp, precise optical snoot spotlight against deep, dramatic pitch-black shadows. Extreme high contrast chiaroscuro lighting, emphasizing the geometric brilliance and sharp reflections of the piece. CRITICAL MANDATE: THE JEWELRY ITSELF MUST NOT BE BLACK AND WHITE. The jewelry MUST be in full, highly saturated, true original color.",
+        "is_model": False
+    },
+    {
+        "key": "luxury_09_candid_editorial",
+        "label": "Luxury Model — Candid Editorial",
+        "shot": "High-end luxury editorial model photoshoot. A sophisticated model wearing the exact original jewelry piece, captured in a candid, authentic moment (e.g., adjusting an earring, resting a hand). Soft, diffused natural lighting. The composition uses close-up proximity to focus on the intricate details of the jewelry while blurring the elegant background into a cinematic bokeh, conveying quiet luxury and emotional storytelling.",
+        "is_model": True
+    },
+    {
+        "key": "luxury_10_white_shirt_off_shoulder",
+        "label": "Luxury Model — White Shirt Casual",
+        "shot": "A candid, intimate luxury lifestyle photograph of a young woman wearing the exact reference jewelry. She is wearing a slightly oversized, crisp white button-up shirt that is playfully slipping off one shoulder, beautifully framing her skin. Warm, soft natural window lighting. The aesthetic is cozy, authentic, and high-end editorial. The jewelry is the focal point, perfectly scaled.",
+        "is_model": True
+    }
+]
+
+# We must also import CATEGORIES from the existing generator.py, but since generator.py has it,
+# we will dynamically import it or leave it in generator.py for now to avoid circular imports.
+# For full scalability, we'll redefine the categories here.
+ALIASES = {
+    "rings": "ring",
+    "band": "ring",
+    "wedding band": "ring",
+    "engagement ring": "ring",
+    "bracelets": "bracelet",
+    "bangle": "bracelet",
+    "cuff": "bracelet",
+    "necklaces": "necklace",
+    "pendant": "necklace",
+    "chain": "necklace",
+    "earrings": "earring",
+    "studs": "earring",
+    "hoops": "earring",
+    "drops": "earring",
+    "dangles": "earring"
+}
 
 CATEGORIES = {
     # ── RING ──────────────────────────────────────────────────────────────────
@@ -62,6 +294,44 @@ CATEGORIES = {
                     "The ring standing on a textured natural stone surface, shot from a 45-degree three-quarter profile. "
                     "Shows the side of the band and the face of the stone simultaneously. "
                     "Dramatic natural side lighting, realistic depth of field."
+                ),
+            },
+            {
+                "key":   "10_product_side_profile",
+                "label": "Product — 90° Side Band",
+                "shot":  (
+                    "The ring standing upright on a creamy marble surface, shot from a pure 90-degree side profile. "
+                    "Reveals the full band thickness, gallery wire, and stone setting height. "
+                    "Crisp natural side lighting, sharp focus on the metal edge and profile."
+                ),
+            },
+            {
+                "key":   "11_product_macro_stone",
+                "label": "Product — Macro Center Stone",
+                "shot":  (
+                    "Extreme macro close-up of the ring's center stone on a creamy marble surface. "
+                    "Every facet, inclusion, and brilliance pattern razor-sharp. "
+                    "Dramatic spotlight-style natural light creating prismatic fire and scintillation. "
+                    "Extremely shallow depth of field, background completely dissolved."
+                ),
+            },
+            {
+                "key":   "12_product_low_angle_hero",
+                "label": "Product — Low Angle Hero",
+                "shot":  (
+                    "The ring standing upright on a textured natural stone surface, shot from a dramatic low angle "
+                    "looking upward. The ring appears monumental and imposing. "
+                    "Warm directional lighting from behind, creating a subtle backlit glow around the metal edges. "
+                    "Cinematic, editorial hero shot."
+                ),
+            },
+            {
+                "key":   "14_product_back_band",
+                "label": "Product — Band Back Detail",
+                "shot":  (
+                    "The back of the ring displayed on a creamy marble surface, showing the inner band, "
+                    "hallmarks, and any engraving. Shot straight-on at eye level. "
+                    "Clean natural lighting, every stamp and finish detail visible."
                 ),
             },
         ],
@@ -149,6 +419,33 @@ CATEGORIES = {
                     "Soft bokeh background, natural light source, pendant depth clearly visible."
                 ),
             },
+            {
+                "key":   "05_product_chain_macro",
+                "label": "Product — Chain Link Macro",
+                "shot":  (
+                    "Extreme macro close-up of the necklace chain links on a creamy marble surface. "
+                    "Shows the craftsmanship, link pattern, and metal finish in microscopic detail. "
+                    "Natural directional light catching each polished surface. Extremely shallow depth of field."
+                ),
+            },
+            {
+                "key":   "06_product_clasp_detail",
+                "label": "Product — Clasp Detail",
+                "shot":  (
+                    "Close-up of the necklace clasp mechanism on a natural stone surface. "
+                    "Shows the lobster claw or spring ring in sharp focus. "
+                    "Clean natural lighting, professional product documentation style."
+                ),
+            },
+            {
+                "key":   "07_product_draped_curve",
+                "label": "Product — Draped S-Curve",
+                "shot":  (
+                    "The necklace arranged in an elegant S-curve on a luxury creamy marble surface, shot from above at a slight angle. "
+                    "The chain flows naturally with organic movement. Pendant rests at the curve's center. "
+                    "Soft directional window light, creating depth along the chain's contour."
+                ),
+            },
         ],
         "model": [
             {
@@ -190,6 +487,16 @@ CATEGORIES = {
                     "Natural window light, shallow depth of field, sharp skin detail."
                 ),
             },
+            {
+                "key": "13_model_off_shoulder_white_shirt",
+                "label": "Model — White Shirt Casual",
+                "shot": (
+                    "A candid, intimate luxury lifestyle photograph of a young woman wearing the exact reference necklace. "
+                    "She is wearing a slightly oversized, crisp white button-up shirt that is playfully slipping off one shoulder, "
+                    "beautifully framing her collarbone and neck. Warm, soft natural window lighting. "
+                    "The aesthetic is cozy, authentic, and high-end editorial."
+                ),
+            },
         ],
     },
 
@@ -229,6 +536,33 @@ CATEGORIES = {
                     "Close-up of the bracelet clasp on a natural stone surface. "
                     "Shows the craftsmanship and closure mechanism clearly. "
                     "Sharp focus, natural lighting."
+                ),
+            },
+            {
+                "key":   "05_product_side_profile",
+                "label": "Product — Side Profile",
+                "shot":  (
+                    "The bracelet standing upright on a creamy marble surface, shot from a 90-degree side profile. "
+                    "Shows the full width, stone settings, and metalwork depth. "
+                    "Natural directional lighting, realistic shadow cast."
+                ),
+            },
+            {
+                "key":   "06_product_link_macro",
+                "label": "Product — Link Macro Detail",
+                "shot":  (
+                    "Extreme macro close-up of the bracelet links or stone settings on a natural stone surface. "
+                    "Every detail of the metalwork and gem mounting visible at microscopic level. "
+                    "Shallow depth of field, dramatic natural side lighting."
+                ),
+            },
+            {
+                "key":   "07_product_curved_arc",
+                "label": "Product — Curved Arc View",
+                "shot":  (
+                    "The bracelet displayed in a natural curved arc on a creamy marble surface, shot from a slight overhead angle. "
+                    "Shows the natural curvature and how stones flow along the band. "
+                    "Soft natural window light, elegant and organic presentation."
                 ),
             },
         ],
@@ -302,6 +636,42 @@ CATEGORIES = {
                     "Shows the depth and backing. Realistic lighting and shadows."
                 ),
             },
+            {
+                "key":   "05_product_back_post",
+                "label": "Product — Back & Post Detail",
+                "shot":  (
+                    "One earring flipped to show the back, post, and butterfly clutch on a creamy marble surface. "
+                    "All mechanical details clearly visible. Clean, even natural lighting. "
+                    "Professional product documentation, sharp focus on the findings."
+                ),
+            },
+            {
+                "key":   "06_product_macro_stone",
+                "label": "Product — Macro Stone Detail",
+                "shot":  (
+                    "Extreme macro close-up of one earring's center stone or diamond cluster on a natural stone surface. "
+                    "Every facet and brilliance pattern captured in microscopic detail. "
+                    "Dramatic natural spotlight creating prismatic fire. Extremely shallow depth of field."
+                ),
+            },
+            {
+                "key":   "07_product_staggered_pair",
+                "label": "Product — Staggered Pair Display",
+                "shot":  (
+                    "Both earrings displayed at staggered heights on creamy marble surfaces or small stone pedestals. "
+                    "One slightly forward, one slightly behind, creating elegant depth and dimension. "
+                    "Soft directional natural lighting, luxury editorial display style."
+                ),
+            },
+            {
+                "key":   "08_product_drop_length",
+                "label": "Product — Drop Length Profile",
+                "shot":  (
+                    "One earring hanging vertically against a creamy marble background, showing full drop length. "
+                    "Shot straight-on to reveal total dimensions and dangle movement. "
+                    "Natural side lighting, clean proportional reference."
+                ),
+            },
         ],
         "model": [
             {
@@ -339,6 +709,17 @@ CATEGORIES = {
                     "Extreme macro of the earring on a real woman's earlobe. "
                     "Razor-sharp focus on the stones, showing natural skin pores and texture. "
                     "Soft natural light, authentic luxury editorial."
+                ),
+            },
+            {
+                "key": "13_model_off_shoulder_white_shirt",
+                "label": "Model — White Shirt Casual",
+                "shot": (
+                    "A candid, intimate luxury lifestyle photograph of a young woman wearing the exact reference earring. "
+                    "CRITICAL SIZE REQUIREMENT: The earring must be rendered VERY SMALL and delicate on her earlobe. "
+                    "She is wearing a slightly oversized, crisp white button-up shirt that is playfully slipping off one shoulder, "
+                    "beautifully framing her neck and ear. Warm, soft natural window lighting. "
+                    "The aesthetic is cozy, authentic, and high-end editorial."
                 ),
             },
         ],
@@ -380,6 +761,33 @@ CATEGORIES = {
                     "Shows engravings and bail attachment. Realistic light, sharp focus."
                 ),
             },
+            {
+                "key":   "05_product_bail_macro",
+                "label": "Product — Bail Close-Up",
+                "shot":  (
+                    "Extreme macro close-up of the pendant bail and chain attachment on a creamy marble surface. "
+                    "Shows the loop, metalwork, and how the chain threads through. "
+                    "Natural directional light, sharp focus on the craftsmanship details."
+                ),
+            },
+            {
+                "key":   "06_product_side_profile",
+                "label": "Product — Side Depth Profile",
+                "shot":  (
+                    "The pendant on a natural stone surface, shot from a 90-degree side profile. "
+                    "Reveals the full depth, stone setting height, and bezel or prong work. "
+                    "Clean natural side lighting, professional documentation angle."
+                ),
+            },
+            {
+                "key":   "07_product_macro_stone",
+                "label": "Product — Stone Facet Macro",
+                "shot":  (
+                    "Extreme macro close-up of the pendant's center stone on a creamy marble surface. "
+                    "Every facet, fire, and brilliance pattern captured with razor-sharp precision. "
+                    "Dramatic spotlight-style natural light. Extremely shallow depth of field."
+                ),
+            },
         ],
         "model": [
             {
@@ -408,6 +816,16 @@ CATEGORIES = {
                     "A real woman's hand gently touching or holding the pendant while wearing it. "
                     "Natural window light, realistic skin and nail texture. "
                     "Authentic, high-end lifestyle photography."
+                ),
+            },
+            {
+                "key": "10_model_off_shoulder_white_shirt",
+                "label": "Model — White Shirt Casual",
+                "shot": (
+                    "A candid, intimate luxury lifestyle photograph of a young woman wearing the exact reference pendant. "
+                    "She is wearing a slightly oversized, crisp white button-up shirt that is playfully slipping off one shoulder, "
+                    "beautifully framing her collarbone and neck. Warm, soft natural window lighting. "
+                    "The aesthetic is cozy, authentic, and high-end editorial."
                 ),
             },
         ],
@@ -447,6 +865,33 @@ CATEGORIES = {
                 "shot":  (
                     "The bangle standing upright on a natural stone surface, 90-degree side profile. "
                     "Shows width and stone arrangement. Realistic lighting."
+                ),
+            },
+            {
+                "key":   "05_product_interior",
+                "label": "Product — Interior Detail",
+                "shot":  (
+                    "The bangle tilted to reveal the interior surface on a creamy marble surface. "
+                    "Shows any engravings, hallmarks, or smooth interior finish. "
+                    "Clean natural lighting from above, sharp focus on interior details."
+                ),
+            },
+            {
+                "key":   "06_product_low_angle",
+                "label": "Product — Low Angle Hero",
+                "shot":  (
+                    "The bangle standing upright on a textured natural stone surface, shot from a dramatic low angle. "
+                    "The bangle appears monumental and imposing against a soft-focus background. "
+                    "Warm directional backlight creating a subtle glow around the metal edges."
+                ),
+            },
+            {
+                "key":   "07_product_stacked",
+                "label": "Product — Stacked Display",
+                "shot":  (
+                    "The bangle displayed alongside two complementary thin metal bands on a creamy marble surface. "
+                    "Stacked arrangement showing versatility and styling potential. "
+                    "Soft natural window light, luxury editorial display style."
                 ),
             },
         ],
@@ -516,6 +961,33 @@ CATEGORIES = {
                     "Macro photography, extremadamente shallow depth of field, sharp focus."
                 ),
             },
+            {
+                "key":   "05_product_clasp_detail",
+                "label": "Product — Clasp Detail",
+                "shot":  (
+                    "Close-up of the anklet clasp mechanism on a natural stone surface. "
+                    "Shows the closure type and extension chain clearly. "
+                    "Sharp focus, clean natural lighting, professional documentation."
+                ),
+            },
+            {
+                "key":   "06_product_coiled_circle",
+                "label": "Product — Coiled Circle",
+                "shot":  (
+                    "The anklet coiled in a natural circle on a creamy marble surface, shot from above. "
+                    "Shows the complete chain pattern and charms in a compact, elegant arrangement. "
+                    "Soft natural overhead light, organic presentation."
+                ),
+            },
+            {
+                "key":   "07_product_chain_macro",
+                "label": "Product — Chain Link Macro",
+                "shot":  (
+                    "Extreme macro close-up of the anklet chain links on a natural stone surface. "
+                    "Shows the link pattern, metal finish, and craftsmanship in microscopic detail. "
+                    "Natural directional light, extremely shallow depth of field."
+                ),
+            },
         ],
         "model": [
             {
@@ -583,6 +1055,33 @@ CATEGORIES = {
                     "Macro studio lighting, extremadamente shallow depth of field, razor-sharp facets."
                 ),
             },
+            {
+                "key":   "05_product_back_pin",
+                "label": "Product — Back Pin Mechanism",
+                "shot":  (
+                    "The brooch flipped to show the back, revealing the pin mechanism, catch, and hinge. "
+                    "Laid flat on a creamy marble surface. Clean natural lighting. "
+                    "Professional documentation shot showing construction quality."
+                ),
+            },
+            {
+                "key":   "06_product_low_angle",
+                "label": "Product — Low Angle Perspective",
+                "shot":  (
+                    "The brooch propped at a slight angle on a natural stone surface, shot from a dramatic low angle. "
+                    "Creates a monumental, heroic perspective emphasizing the brooch's sculptural quality. "
+                    "Warm backlit glow, cinematic depth of field."
+                ),
+            },
+            {
+                "key":   "07_product_texture_macro",
+                "label": "Product — Texture & Enamel Macro",
+                "shot":  (
+                    "Extreme macro close-up of the brooch surface on a creamy marble surface. "
+                    "Captures enamel work, filigree, milgrain, or engraved details at microscopic level. "
+                    "Natural directional light revealing surface textures. Ultra-shallow depth of field."
+                ),
+            },
         ],
         "model": [
             {
@@ -622,431 +1121,3 @@ ALIASES = {
     "bangles": "bangle", "cuff": "bangle", "anklets": "anklet",
     "brooches": "brooch", "pin": "brooch",
 }
-
-def resolve_category(raw: str) -> str:
-    key = ALIASES.get(raw.strip().lower(), raw.strip().lower())
-    if key not in CATEGORIES:
-        raise ValueError(f"Unknown category: '{raw}'")
-    return key
-
-
-async def extract_design_lock(
-    client: genai.Client, img: bytes, mime: str, category: str, worn_on: str, shot_labels: list[str]
-) -> tuple[str, str, list[str]]:
-    print("Locking design details and picking best angles (optimized single-call)...")
-    
-    shots_list_text = "\n".join([f"- {label}" for label in shot_labels])
-    
-    # COMBINED SINGLE CALL: Description + Angle Analysis + Recommendations
-    resp = await client.aio.models.generate_content(
-        model=MODEL,
-        contents=[
-            types.Part.from_bytes(data=img, mime_type=mime),
-            types.Part.from_text(text=f"""
-Look at this {category} image very carefully. 
-Your primary goal is POINT-TO-POINT fidelity. 
-Perform the following technical analysis in one pass:
-
-1. DESIGN DESCRIPTION:
-Write a precise paragraph describing the metal, main stones, setting, and proportions.
-Be extremely detailed about stone counts, stone positions (relative to each other), and exact cuts.
-Mention the exact arrangement (e.g., "5 stones on the left, 5 on the right").
-If it is a cluster or halo, count the stones precisely.
-Start with: "This {category} has..."
-
-2. ANGLE IDENTIFICATION:
-Identify which of these standard camera angles best matches the reference image:
-{shots_list_text}
-- Unknown
-
-3. SHOT RECOMMENDATIONS:
-Select exactly {int(TOTAL_PRODUCT)} Product shots from the list above that would best showcase this design.
-MANDATORY VARIETY RULES:
-- DO NOT select the angle identified in Step 2.
-- DO NOT select angles that are visually similar to the reference image.
-- MUST provide a 360-degree coverage (e.g., if ref is Front, pick Top-Down, Side, and 3/4).
-- Prioritize angles that reveal details NOT visible in the reference image.
-
-Format your entire response exactly as follows:
-DESCRIPTION: [Your paragraph here]
-ANGLE: [The exact label of the original angle]
-RECOMMENDED: [Label1], [Label2], [Label3]
-
-STRICT RULE: DO NOT CHANGE THE DESIGN. DO NOT ADD OR REMOVE ANY DIAMOND OR DETAIL. SAME TO SAME.
-"""),
-        ],
-        config=types.GenerateContentConfig(response_modalities=["TEXT"]),
-    )
-    
-    full_text = "".join(
-        p.text for p in resp.candidates[0].content.parts
-        if hasattr(p, "text") and p.text
-    ).strip()
-    
-    # Parse the combined response
-    design_lock = "Unknown design"
-    if "DESCRIPTION:" in full_text:
-        design_lock = full_text.split("DESCRIPTION:")[1].split("ANGLE:")[0].strip()
-        
-    existing_angle = "Unknown"
-    if "ANGLE:" in full_text:
-        existing_angle = full_text.split("ANGLE:")[1].split("RECOMMENDED:")[0].strip()
-        
-    recommended_labels = []
-    if "RECOMMENDED:" in full_text:
-        rec_part = full_text.split("RECOMMENDED:")[1].strip()
-        recs = rec_part.split(",")
-        recommended_labels = [r.strip() for r in recs if r.strip()]
-        
-    return design_lock, existing_angle, recommended_labels
-
-
-# Strict rules injected into every prompt
-DESIGN_LOCK_RULES = f"""
-ABSOLUTE RULES — POINT-TO-POINT FIDELITY:
-1. REPRODUCE THE DESIGN EXACTLY: Every single point, curve, and stone MUST match the reference image.
-2. NO CREATIVITY: Do NOT add, remove, or modify even a single microscopic detail.
-3. DIAMOND FIDELITY: Every diamond's position, cut, and size must remain identical to the original.
-4. METAL COLOR: Keep the metal color and finish (polished, matte, hammered) exactly as shown.
-5. NO SPARKLES: Do not add artificial sparkles, lens flares, or AI-generated "glow".
-6. SAME TO SAME: The goal is a perfect replica from a different angle, not an "improved" version.
-7. DO NOT INVENT: If a detail isn't visible or described, do not invent one.
-
-{GLOBAL_THEME_RULES}
-"""
-
-ANGLE_RULES = """
-CRITICAL ANGLE OVERRIDE:
-- You MUST completely ignore the camera angle from the provided reference image!
-- The reference image is ONLY for learning the design (stones, metal, shape).
-- Do NOT generate the same angle as the reference image under any circumstances!
-- You MUST render the jewelry from the EXACT angle described in the "CAMERA ANGLE / SHOT COMPOSITION" section.
-- If the instruction says "Top-Down", render it perfectly flat from above.
-- If the instruction says "Macro Close-Up", zoom in directly.
-- The angle is the absolute most important requirement of this task. Firing the exact same angle multiple times is a severe failure.
-"""
-
-REALISM_SCALE_RULE = """
-CRITICAL REALISM AND SCALE RULES:
-- The jewelry MUST appear at its true, real-world size relative to the body part
-- Do NOT make the jewelry oversized, exaggerated, or blown up
-- A ring is small — it fits snugly on a finger (17-19mm diameter)
-- A pendant is small — it rests delicately on the chest (typically 15-30mm wide)
-- A bracelet wraps a wrist naturally (not oversized)
-- The jewelry should look exactly as it appears in real jewelry photographs
-- Real human proportions: natural finger size, natural wrist size, natural neck size
-- The final image must be indistinguishable from a real luxury jewelry brand photograph
-"""
-
-PHOTOGRAPHY_REALISM_RULES = """
-STRICT PHOTOGRAPHY REALISM RULES:
-1. RAW PHOTOGRAPHY STYLE: The image must look like a raw, unedited photograph from a high-end Leica or Hasselblad camera. No "AI glow" or plastic-looking surfaces.
-2. NATURAL LIGHTING ONLY: Use side-window lighting, soft natural shadows, and organic light falloff. NO even studio lighting. NO artificial-looking point lights.
-3. AUTHENTIC METAL TEXTURE: Metal (gold, silver, platinum) must show microscopic texture, subtle reflections, and natural polish — NOT perfectly smooth or liquid-looking.
-4. TEXTURED BACKGROUNDS: Use realistic, high-end materials like textured linen, dark silk, organic wood, or honed marble. The background should have depth and grain.
-5. REAL DEPTH OF FIELD: Macro shots MUST have a razor-thin depth of field with creamy bokeh (blurred background). Model shots should have natural eye-level focus.
-6. FILM COLOR GRADING: Use natural, muted, organic color tones. NO oversaturation. No neon colors. The palette must feel expensive and understated.
-"""
-
-
-def apply_logo_overlay(image_path: Path):
-    """
-    Applies the Riolls logo to the bottom-right corner of the image.
-    """
-    if not os.path.exists(LOGO_PATH):
-        print(f"Logo not found at {LOGO_PATH}, skipping watermark.")
-        return
-
-    try:
-        with Image.open(image_path) as base_img:
-            # Open logo and ensure it has an alpha channel
-            logo = Image.open(LOGO_PATH).convert("RGBA")
-            
-            # Scale logo to ~12% width of the base image
-            base_w, base_h = base_img.size
-            logo_w, logo_h = logo.size
-            scale_factor = (base_w * 0.12) / logo_w
-            new_size = (int(logo_w * scale_factor), int(logo_h * scale_factor))
-            logo = logo.resize(new_size, Image.Resampling.LANCZOS)
-            
-            # Position: Bottom-right with 5% padding
-            padding_x = int(base_w * 0.05)
-            padding_y = int(base_h * 0.05)
-            pos_x = base_w - logo.width - padding_x
-            pos_y = base_h - logo.height - padding_y
-            
-            # Create overlay
-            overlay = Image.new("RGBA", base_img.size, (0, 0, 0, 0))
-            overlay.paste(logo, (pos_x, pos_y), logo)
-            
-            # Composite and save (preserve format)
-            if base_img.mode != "RGBA":
-                base_img = base_img.convert("RGBA")
-            
-            final_img = Image.alpha_composite(base_img, overlay)
-            
-            # Convert back if needed (e.g. for JPEG)
-            if image_path.suffix.lower() in [".jpg", ".jpeg"]:
-                final_img = final_img.convert("RGB")
-                final_img.save(image_path, "JPEG", quality=95)
-            else:
-                final_img.save(image_path)
-                
-            print(f"Applied logo to {image_path.name}")
-            
-    except Exception as e:
-        print(f"Error applying logo to {image_path}: {e}")
-
-async def generate_image(
-    client:      genai.Client,
-    img:         bytes | None,
-    mime:        str | None,
-    design_lock: str,
-    shot:        dict,
-    out_dir:     Path,
-    category:    str,
-    worn_on:     str,
-    is_model:    bool,
-    session_id:  str
-) -> dict | None:
-
-    if is_model:
-        prompt = f"""
-{DESIGN_LOCK_RULES}
-
-MANDATORY DESIGN FIDELITY FOR MODEL SHOT:
-- ABSOLUTELY NO DESIGN DRIFT: Every stone, prong, and metal curve must be IDENTICAL to the reference.
-- NO POSITION CHANGES: Do not move stones, do not change their relative positions.
-- THE JEWELRY IS THE MASTER: The hand must adapt to the jewelry, NOT the other way around.
-- "POINT-TO-POINT" ACCURACY: If the reference has 10 stones, the generation MUST have 10 stones in the exact same pattern.
-
-JEWELRY PIECE TO RENDER ({category}, worn on {worn_on}):
-{design_lock}
-
-STRICT CONTEXT:
-Study the description above and the reference image. Your goal is a perfect 1:1 replica of the jewelry design, just placed on a real human {worn_on}.
-
-{REALISM_SCALE_RULE}
-
-{PHOTOGRAPHY_REALISM_RULES}
-
-{ANGLE_RULES}
-
-CAMERA ANGLE / SHOT COMPOSITION:
-{shot['shot']}
-THIS CAMERA ANGLE IS MANDATORY. RENDER THIS PRECISE PERSPECTIVE.
-
-ADDITIONAL REALISM RULES:
-- Real human skin: natural texture, pores, warmth — NOT plastic or AI-smooth. Pores and fine lines must be visible.
-- Natural lighting that looks like a real photograph taken by a professional photographer. Natural shadows are mandatory.
-- The jewelry must match the reference image design exactly. No extra stones, no missing pieces.
-- The overall image must be photorealistic and indistinguishable from a real photo.
-"""
-    else:
-        prompt = f"""
-You are generating a clean product jewelry photograph.
-
-JEWELRY PIECE ({category}):
-{design_lock}
-
-The text below describes the exact piece. Study it carefully.
-
-{DESIGN_LOCK_RULES}
-
-{PHOTOGRAPHY_REALISM_RULES}
-
-{ANGLE_RULES}
-
-CAMERA ANGLE / SHOT COMPOSITION:
-{shot['shot']}
-THIS CAMERA ANGLE IS MANDATORY. RENDER THIS PRECISE PERSPECTIVE.
-
-PRODUCT SHOT RULES:
-- Soft directional natural lighting with organic shadows
-- Use the background texture specified in the shot description
-- The jewelry must match the reference image exactly. No extra stones, no missing pieces.
-- Photorealistic quality, razor-sharp focus on the jewelry, shallow depth of field
-"""
-
-    try:
-        req_contents = []
-        if img and mime:
-            req_contents.append(types.Part.from_bytes(data=img, mime_type=mime))
-            
-        req_contents.append(types.Part.from_text(text=prompt))
-        
-        resp = await client.aio.models.generate_content(
-            model=MODEL,
-            contents=req_contents,
-            config=types.GenerateContentConfig(
-                response_modalities=["IMAGE", "TEXT"],
-            ),
-        )
-
-        for part in resp.candidates[0].content.parts:
-            # Safely check for inline_data to avoid type errors
-            inline_data = getattr(part, "inline_data", None)
-            if inline_data:
-                out_bytes = inline_data.data
-                mime_part = getattr(inline_data, "mime_type", "")
-                ext       = "png" if "png" in mime_part else "jpg"
-                filename  = f"{shot['key']}.{ext}"
-                save_path = out_dir / filename
-                save_path.write_bytes(out_bytes)
-                
-                # Apply Branding Watermark
-                apply_logo_overlay(save_path)
-                
-                return {"url": f"/outputs/{session_id}/{filename}", "label": shot['label']}
-
-        return None
-
-    except Exception as e:
-        print(f"Error generating {shot['label']}: {e}")
-        return None
-
-
-async def generate_shots(image_bytes: bytes, mime_type: str, category_raw: str, session_id: str) -> list[dict]:
-    if not GEMINI_API_KEY:
-        raise ValueError("GEMINI_API_KEY is not set.")
-
-    category = resolve_category(category_raw)
-    cat      = CATEGORIES[category]
-    worn_on  = str(cat["worn_on"])
-    
-    # Correctly type all_cat_shots as a list of tuples (dict, bool)
-    all_cat_shots: list[tuple[dict, bool]] = (
-        [(s, False) for s in cat["product"]] +
-        [(s, True)  for s in cat["model"]]
-    )
-    shot_labels = [s["label"] for s, _ in all_cat_shots]
-
-    out_dir = Path("outputs") / session_id
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    client = genai.Client(api_key=GEMINI_API_KEY)
-
-    design_lock, existing_angle, recommended_labels = await extract_design_lock(client, image_bytes, mime_type, category, worn_on, shot_labels)
-    (out_dir / "design_lock.txt").write_text(design_lock + f"\n\nIdentified Existing Angle: {existing_angle}\nRecommended: {recommended_labels}", encoding="utf-8")
-
-    # Filter out the existing angle to ensure we don't duplicate it
-    # We use a stricter check: if the label contains any part of the identified angle
-    def is_angle_excluded(label: str, existing: str) -> bool:
-        if existing.lower() == "unknown": return False
-        l_low = label.lower()
-        e_low = existing.lower()
-        # If the identified angle is "Product — Front", exclude anything with "front"
-        keywords = ["front", "side", "top", "back", "macro", "profile", "hand"]
-        for kw in keywords:
-            if kw in e_low and kw in l_low:
-                return True
-        return e_low in l_low or l_low in e_low
-
-    available_shots = [(s, is_m) for s, is_m in all_cat_shots if not is_angle_excluded(s["label"], existing_angle)]
-    
-    # If filtering was too aggressive, fall back to simple exclusion
-    if not available_shots:
-        available_shots = [(s, is_m) for s, is_m in all_cat_shots if s["label"].lower() != existing_angle.lower()]
-    
-    # SHUFFLE available_shots to increase variety across different product runs
-    random.shuffle(available_shots)
-    
-    product_shots = [x for x in available_shots if not x[1]]
-    model_shots = [x for x in available_shots if x[1]]
-    
-    selected_shots: list = []
-    
-    # Process AI recommendations
-    ai_selected_products: list = []
-    ai_selected_models: list = []
-    
-    for rec_label in recommended_labels:
-        for shot_tuple in available_shots:
-            s, is_m = shot_tuple
-            if s["label"].lower() in rec_label.lower() or rec_label.lower() in s["label"].lower():
-                if is_m and shot_tuple not in ai_selected_models:
-                    ai_selected_models.append(shot_tuple)
-                elif not is_m and shot_tuple not in ai_selected_products:
-                    ai_selected_products.append(shot_tuple)
-                    
-    # Pick Product Shots (Goal: TOTAL_PRODUCT)
-    selected_shots.extend(ai_selected_products[:int(TOTAL_PRODUCT)])
-    if len(selected_shots) < int(TOTAL_PRODUCT):
-        remaining_prod = [x for x in product_shots if x not in selected_shots]
-        selected_shots.extend(remaining_prod[:int(TOTAL_PRODUCT) - len(selected_shots)])
-        
-    # Pick Model Shots (Goal: TOTAL_MODEL)
-    current_model_count = len([x for x in selected_shots if x[1]])
-    
-    selected_models_from_ai = ai_selected_models[:int(TOTAL_MODEL)]
-    for m_shot in selected_models_from_ai:
-        if m_shot not in selected_shots:
-            selected_shots.append(m_shot)
-            
-    current_model_count = len([x for x in selected_shots if x[1]])
-    if current_model_count < int(TOTAL_MODEL):
-        remaining_model = [x for x in model_shots if x not in selected_shots]
-        selected_shots.extend(remaining_model[:int(TOTAL_MODEL) - current_model_count])
-
-    # Final target check
-    total_target = int(TOTAL_PRODUCT) + int(TOTAL_MODEL)
-    if len(selected_shots) < total_target:
-        remaining = [x for x in available_shots if x not in selected_shots]
-        selected_shots.extend(remaining[:int(total_target) - len(selected_shots)])
-
-    # Process 2 shots at a time to prevent server overload
-    final_results = []
-    chunk_size = 2
-    for i in range(0, len(selected_shots), chunk_size):
-        chunk = selected_shots[i : i + chunk_size]
-        chunk_results = await asyncio.gather(*[
-            generate_image(client, image_bytes, mime_type, design_lock, s, out_dir, category, worn_on, is_m, session_id)
-            for s, is_m in chunk
-        ], return_exceptions=True)
-        final_results.extend(chunk_results)
-
-    # Filter out exceptions and Nones
-    return [r for r in final_results if isinstance(r, dict)]
-
-async def generate_shots_from_text(prompt_text: str, category_raw: str, session_id: str) -> list[dict]:
-    if not GEMINI_API_KEY:
-        raise ValueError("GEMINI_API_KEY is not set.")
-
-    category = resolve_category(category_raw)
-    cat      = CATEGORIES[category]
-    worn_on  = str(cat["worn_on"])
-    
-    product_shots: list = [(s, False) for s in cat["product"]]
-    model_shots: list = [(s, True) for s in cat["model"]]
-    
-    # Shuffle for variety
-    random.shuffle(product_shots)
-    random.shuffle(model_shots)
-    
-    selected_shots: list = []
-    selected_shots.extend(product_shots[:int(TOTAL_PRODUCT)])
-    selected_shots.extend(model_shots[:int(TOTAL_MODEL)])
-    
-    total_target = int(TOTAL_PRODUCT) + int(TOTAL_MODEL)
-    if len(selected_shots) < int(total_target):
-        remaining = [x for x in (product_shots + model_shots) if x not in selected_shots]
-        selected_shots.extend(remaining[:int(total_target) - len(selected_shots)])
-
-    out_dir = Path("outputs") / session_id
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    client = genai.Client(api_key=GEMINI_API_KEY)
-    design_lock = prompt_text
-    (out_dir / "design_lock.txt").write_text(design_lock, encoding="utf-8")
-
-    final_results = []
-    chunk_size = 2
-    for i in range(0, len(selected_shots), chunk_size):
-        chunk = selected_shots[i : i + chunk_size]
-        chunk_results = await asyncio.gather(*[
-            generate_image(client, None, None, design_lock, s, out_dir, category, worn_on, is_m, session_id)
-            for s, is_m in chunk
-        ], return_exceptions=True)
-        final_results.extend(chunk_results)
-
-    return [r for r in final_results if isinstance(r, dict)]

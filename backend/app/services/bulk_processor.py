@@ -4,13 +4,68 @@ import uuid
 import pandas as pd
 import aiohttp
 import mimetypes
+import sqlite3
 from datetime import datetime
 from pathlib import Path
-from generator import generate_shots, generate_shots_from_text
+from app.services.generator import generate_shots, generate_shots_from_text
 
-# In-memory storage for jobs
-# Format: { "job_id": { "status": "processing", "progress": "0/10", "results": [] } }
-jobs = {}
+DB_PATH = Path("jobs.db")
+
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS jobs (
+            job_id TEXT PRIMARY KEY,
+            status TEXT,
+            progress TEXT,
+            results TEXT,
+            error TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+init_db()
+
+def update_job(job_id: str, status: str = None, progress: str = None, results: list = None, error: str = None):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    
+    c.execute('SELECT status, progress, results, error FROM jobs WHERE job_id = ?', (job_id,))
+    row = c.fetchone()
+    
+    if not row:
+        c.execute('INSERT INTO jobs (job_id, status, progress, results, error) VALUES (?, ?, ?, ?, ?)',
+                  (job_id, status or "processing", progress or "", json.dumps(results or []), error or ""))
+    else:
+        new_status = status if status is not None else row[0]
+        new_progress = progress if progress is not None else row[1]
+        new_results = json.dumps(results) if results is not None else row[2]
+        new_error = error if error is not None else row[3]
+        
+        c.execute('UPDATE jobs SET status = ?, progress = ?, results = ?, error = ? WHERE job_id = ?',
+                  (new_status, new_progress, new_results, new_error, job_id))
+    
+    conn.commit()
+    conn.close()
+
+def get_job_status(job_id: str):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('SELECT status, progress, results, error FROM jobs WHERE job_id = ?', (job_id,))
+    row = c.fetchone()
+    conn.close()
+    
+    if not row:
+        return None
+        
+    return {
+        "status": row[0],
+        "progress": row[1],
+        "results": json.loads(row[2]) if row[2] else [],
+        "error": row[3]
+    }
 
 async def download_image(url: str) -> tuple[bytes, str]:
     async with aiohttp.ClientSession() as session:
@@ -58,16 +113,15 @@ def write_row_log(out_dir: Path, product_id: str, category: str, row_num: int,
         print(f"Could not write log for {product_id}: {e}")
 
 async def process_excel_background(job_id: str, file_path: str, global_category: str):
-    jobs[job_id] = {"status": "processing", "progress": "Initializing...", "results": []}
+    results = []
+    update_job(job_id, status="processing", progress="Initializing...", results=results)
     
     try:
-        # Read Excel or CSV
         if file_path.endswith('.csv'):
             df = pd.read_csv(file_path)
         else:
             df = pd.read_excel(file_path)
         
-        # Determine URL or Prompt column
         url_col = None
         prompt_col = None
         product_id_col = None
@@ -90,17 +144,15 @@ async def process_excel_background(job_id: str, file_path: str, global_category:
             row_num = index + 1
             if index < 15:
                 continue
-            jobs[job_id]["progress"] = f"Processing row {row_num}/{total_rows}..."
             
-            # Use specific category from row if provided, else use global_category
+            update_job(job_id, progress=f"Processing row {row_num}/{total_rows}...")
+            
             category_col = next((c for c in df.columns if 'category' in c.lower() or 'piece type' in c.lower()), None)
             category = str(row[category_col]).strip().lower() if category_col and pd.notna(row[category_col]) else global_category
             
-            # Resolve product_id
             if product_id_col and pd.notna(row[product_id_col]) and str(row[product_id_col]).strip():
                 product_id = str(row[product_id_col]).strip()
             else:
-                # Fallback: just row-{row_num} (no extra category prefix)
                 product_id = f"row-{row_num}"
                 
             try:
@@ -108,21 +160,32 @@ async def process_excel_background(job_id: str, file_path: str, global_category:
                 out_dir = Path("outputs") / product_id
                 if out_dir.exists():
                     existing_images = list(out_dir.glob("*.jpg")) + list(out_dir.glob("*.png"))
-                    if len(existing_images) >= 6: # Assuming we expect 6 shots
+                    if len(existing_images) >= 6:
                         print(f"Skipping row {row_num}: {product_id} already exists with {len(existing_images)} images.")
-                        # Load existing results for the status UI
-                        results = []
+                        shot_results = []
                         for img in existing_images:
-                            results.append({"url": f"/outputs/{product_id}/{img.name}", "label": img.stem.replace("_", " ").title()})
+                            shot_results.append({"url": f"/outputs/{product_id}/{img.name}", "label": img.stem.replace("_", " ").title()})
+                            
+                            # Proactively copy to etsy_product_image if not already present
+                            try:
+                                target_dir = Path("/Users/parthkukadiya/work/etsy_product_image") / product_id
+                                target_dir.mkdir(parents=True, exist_ok=True)
+                                target_path = target_dir / img.name
+                                if not target_path.exists() and img.exists():
+                                    target_path.write_bytes(img.read_bytes())
+                                    print(f"Copied existing image {img.name} to {target_path}")
+                            except Exception as copy_ex:
+                                print(f"Error copying existing image to etsy_product_image: {copy_ex}")
                         
-                        jobs[job_id]["results"].append({
+                        results.append({
                             "row": row_num,
                             "product_id": product_id,
                             "url": "Skipped (Existing)",
                             "category": category,
                             "success": True,
-                            "shots": results
+                            "shots": shot_results
                         })
+                        update_job(job_id, results=results)
                         continue
 
                 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -130,7 +193,7 @@ async def process_excel_background(job_id: str, file_path: str, global_category:
                 if url_col and pd.notna(row[url_col]) and str(row[url_col]).startswith('http'):
                     image_url = str(row[url_col])
                     contents, mime_type = await download_image(image_url)
-                    results = await generate_shots(
+                    shot_results = await generate_shots(
                         image_bytes=contents,
                         mime_type=mime_type,
                         category_raw=category,
@@ -139,7 +202,7 @@ async def process_excel_background(job_id: str, file_path: str, global_category:
                     identifier = image_url
                 elif prompt_col and pd.notna(row[prompt_col]):
                     text_prompt = str(row[prompt_col])
-                    results = await generate_shots_from_text(
+                    shot_results = await generate_shots_from_text(
                         prompt_text=text_prompt,
                         category_raw=category,
                         session_id=product_id
@@ -148,22 +211,22 @@ async def process_excel_background(job_id: str, file_path: str, global_category:
                 else:
                     raise ValueError("No valid prompt or URL found for this row.")
                 
-                # Write log inside the product folder
                 out_dir = Path("outputs") / product_id
-                write_row_log(out_dir, product_id, category, row_num, results, timestamp)
+                write_row_log(out_dir, product_id, category, row_num, shot_results, timestamp)
                 
-                jobs[job_id]["results"].append({
+                results.append({
                     "row": row_num,
                     "product_id": product_id,
                     "url": identifier,
                     "category": category,
                     "success": True,
-                    "shots": results
+                    "shots": shot_results
                 })
+                update_job(job_id, results=results)
                 
             except Exception as e:
                 print(f"Error on row {row_num}: {e}")
-                jobs[job_id]["results"].append({
+                results.append({
                     "row": row_num,
                     "product_id": product_id,
                     "url": f"Row {row_num}",
@@ -171,13 +234,9 @@ async def process_excel_background(job_id: str, file_path: str, global_category:
                     "success": False,
                     "error": str(e)
                 })
+                update_job(job_id, results=results)
 
-        jobs[job_id]["status"] = "completed"
-        jobs[job_id]["progress"] = f"Completed {total_rows}/{total_rows}"
+        update_job(job_id, status="completed", progress=f"Completed {total_rows}/{total_rows}")
     
     except Exception as e:
-        jobs[job_id]["status"] = "failed"
-        jobs[job_id]["error"] = str(e)
-
-def get_job_status(job_id: str):
-    return jobs.get(job_id)
+        update_job(job_id, status="failed", error=str(e))
